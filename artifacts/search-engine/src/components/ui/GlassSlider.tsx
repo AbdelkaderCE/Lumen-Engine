@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-/** Standardized glass-themed range slider used to set the p value. */
+/** Theme-aware glass-styled range slider used to set the p value. */
 interface GlassSliderProps {
   value: number;
   min: number;
@@ -28,10 +28,11 @@ export function GlassSlider({
       onChange={(e) => onChange(Number(e.target.value))}
       className={cn(
         "w-full h-2 rounded-full appearance-none cursor-pointer",
-        "bg-white/10 accent-primary",
-        "focus:outline-none focus:ring-2 focus:ring-primary/60",
+        "bg-foreground/10",
+        "focus:outline-none focus:ring-2 focus:ring-accent",
         className,
       )}
+      style={{ accentColor: "hsl(var(--accent))" }}
     />
   );
 }

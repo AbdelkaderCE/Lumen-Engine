@@ -3,13 +3,18 @@ import { motion, type HTMLMotionProps } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 /**
- * GlassButton (monochromatic)
- * ---------------------------
+ * GlassButton (theme-aware)
+ * -------------------------
  * Single button primitive for the entire app.
+ *
  * Variants:
- *   - "primary"  -> high-contrast white background, black text (search submit)
- *   - "ghost"    -> transparent dark surface with neutral border (toggles, secondary)
- *   - "outline"  -> bordered neutral button (cancel, neutral actions)
+ *   - "primary"  -> filled with the active ACCENT color (auto-updates
+ *                   when the user picks a new accent in the theme menu).
+ *   - "ghost"    -> glass surface, neutral border (toggles, secondary)
+ *   - "outline"  -> bordered glass button (cancel, neutral actions)
+ *
+ * The "glassy" texture is preserved across both light and dark modes
+ * because it is driven by the .glass-surface utility (CSS variables).
  */
 type Variant = "primary" | "ghost" | "outline";
 type Size = "sm" | "md" | "lg";
@@ -22,11 +27,11 @@ type GlassButtonProps = HTMLMotionProps<"button"> & {
 
 const variantClasses: Record<Variant, string> = {
   primary:
-    "bg-white text-black border border-neutral-300 hover:bg-neutral-100",
+    "bg-accent text-accent-foreground border border-accent hover:brightness-110",
   ghost:
-    "bg-[#1A1A1A]/70 text-neutral-50 border border-neutral-700/60 hover:bg-neutral-800/70 hover:border-neutral-600",
+    "glass-surface text-foreground hover:bg-foreground/5",
   outline:
-    "bg-transparent text-neutral-50 border border-neutral-600 hover:bg-neutral-900/60",
+    "bg-transparent text-foreground border border-border hover:bg-foreground/5",
 };
 
 const sizeClasses: Record<Size, string> = {
@@ -50,10 +55,10 @@ export const GlassButton = forwardRef<HTMLButtonElement, GlassButtonProps>(
           "relative inline-flex items-center justify-center gap-2 font-medium tracking-tight",
           "select-none cursor-pointer transition-colors",
           "disabled:opacity-50 disabled:cursor-not-allowed",
-          "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-400",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
           sizeClasses[size],
           variantClasses[variant],
-          active && variant !== "primary" && "bg-neutral-800/80 border-neutral-500",
+          active && variant !== "primary" && "border-accent text-foreground",
           className,
         )}
         {...props}

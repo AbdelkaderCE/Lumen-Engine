@@ -17,6 +17,7 @@ import { SearchBar } from "@/components/SearchBar";
 import { ModelControls } from "@/components/ModelControls";
 import { ResultCard } from "@/components/ResultCard";
 import { StatusBar } from "@/components/StatusBar";
+import { ThemeMenu } from "@/components/ThemeMenu";
 
 import {
   type IndexStatus,
@@ -83,20 +84,25 @@ export default function SearchPage() {
   return (
     <div className="relative z-10 min-h-screen w-full px-4 py-10 md:py-16">
       <div className="mx-auto w-full max-w-4xl flex flex-col gap-8">
+        {/* Top bar (theme menu) */}
+        <div className="flex justify-end">
+          <ThemeMenu />
+        </div>
+
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="flex flex-col items-center text-center gap-3"
+          className="flex flex-col items-center text-center gap-3 -mt-6"
         >
           <Badge className="gap-1.5">
-            <Sparkles className="size-3 text-neutral-300" />
+            <Sparkles className="size-3 text-accent" />
             Information Retrieval Engine
           </Badge>
           <DisplayTitle>
             Search your corpus with{" "}
-            <span className="text-white">two ranking models</span>
+            <span className="text-accent">two ranking models</span>
           </DisplayTitle>
           <Snippet className="max-w-2xl">{headerCaption}</Snippet>
         </motion.div>
@@ -190,12 +196,12 @@ export default function SearchPage() {
                   </div>
                   {response.expansions && Object.keys(response.expansions).length > 0 && (
                     <div className="flex flex-wrap items-center gap-2">
-                      <Mono className="text-neutral-500">expanded:</Mono>
+                      <Mono>expanded:</Mono>
                       {Object.entries(response.expansions).map(([raw, terms]) => (
                         <Badge key={raw} className="gap-1.5">
-                          <span className="font-mono text-neutral-300">{raw}</span>
-                          <span className="text-neutral-500">→</span>
-                          <span className="font-mono text-neutral-100">
+                          <span className="font-mono text-muted-foreground">{raw}</span>
+                          <span className="text-accent">→</span>
+                          <span className="font-mono text-foreground">
                             {terms.join(", ")}
                           </span>
                         </Badge>
@@ -207,8 +213,8 @@ export default function SearchPage() {
                 {response.results.length === 0 ? (
                   <GlassCard>
                     <GlassCardContent className="p-8 flex flex-col items-center text-center gap-3">
-                      <div className="flex size-12 items-center justify-center rounded-lg bg-neutral-900/60 border border-neutral-700/60">
-                        <Inbox className="size-6 text-neutral-400" />
+                      <div className="flex size-12 items-center justify-center rounded-lg glass-surface">
+                        <Inbox className="size-6 text-muted-foreground" />
                       </div>
                       <SectionTitle>No matching documents</SectionTitle>
                       <Snippet>
@@ -229,8 +235,8 @@ export default function SearchPage() {
           {!response && !error && (
             <GlassCard>
               <GlassCardContent className="p-8 flex flex-col items-center text-center gap-3">
-                <div className="flex size-12 items-center justify-center rounded-lg bg-neutral-900/60 border border-neutral-700/60">
-                  <Sparkles className="size-6 text-neutral-300" />
+                <div className="flex size-12 items-center justify-center rounded-lg glass-surface">
+                  <Sparkles className="size-6 text-accent" />
                 </div>
                 <SectionTitle>Run a query to see results</SectionTitle>
                 <Snippet className="max-w-md">

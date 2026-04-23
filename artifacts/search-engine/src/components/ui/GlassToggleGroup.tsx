@@ -2,9 +2,8 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 /**
- * Segmented monochromatic toggle. Used to switch between the Vectorial and
- * Extended Boolean models. Active state uses a neutral grey highlight,
- * not a colored gradient.
+ * Segmented theme-aware toggle. Active option uses the accent color so
+ * a theme change propagates instantly without component logic changes.
  */
 export interface GlassToggleOption<T extends string> {
   value: T;
@@ -43,14 +42,16 @@ export function GlassToggleGroup<T extends string>({
             onClick={() => onChange(opt.value)}
             className={cn(
               "relative px-4 h-9 rounded-md text-sm font-medium",
-              "transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-neutral-400",
-              active ? "text-white" : "text-neutral-400 hover:text-neutral-200",
+              "transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent",
+              active
+                ? "text-accent-foreground"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
             {active && (
               <motion.span
                 layoutId="glass-toggle-indicator"
-                className="absolute inset-0 rounded-md bg-neutral-700 border border-neutral-600"
+                className="absolute inset-0 rounded-md bg-accent border border-accent"
                 transition={{ type: "spring", stiffness: 400, damping: 30 }}
               />
             )}

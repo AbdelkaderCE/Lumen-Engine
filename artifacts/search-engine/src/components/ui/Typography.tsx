@@ -2,11 +2,9 @@ import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Typography primitives (monochromatic).
- *
- * Centralizing font sizes and colors here is what makes "document title",
- * "snippet", and "relevance score" instantly recognizable across every
- * screen of the app, regardless of where they're rendered.
+ * Theme-aware typography primitives.
+ * All colors come from semantic tokens (foreground / muted-foreground /
+ * accent) so they automatically adapt to light & dark modes.
  */
 
 export function DisplayTitle({
@@ -16,7 +14,7 @@ export function DisplayTitle({
   return (
     <h1
       className={cn(
-        "font-serif text-4xl md:text-5xl tracking-tight text-neutral-50",
+        "font-serif text-4xl md:text-5xl tracking-tight text-foreground",
         className,
       )}
       {...props}
@@ -31,7 +29,7 @@ export function SectionTitle({
   return (
     <h2
       className={cn(
-        "text-lg font-semibold tracking-tight text-neutral-50",
+        "text-lg font-semibold tracking-tight text-foreground",
         className,
       )}
       {...props}
@@ -46,7 +44,7 @@ export function DocumentTitle({
   return (
     <h3
       className={cn(
-        "text-base font-semibold text-neutral-50 truncate",
+        "text-base font-semibold text-foreground truncate",
         className,
       )}
       {...props}
@@ -61,7 +59,7 @@ export function Snippet({
   return (
     <p
       className={cn(
-        "text-sm leading-relaxed text-neutral-400",
+        "text-sm leading-relaxed text-muted-foreground",
         className,
       )}
       {...props}
@@ -75,12 +73,16 @@ export function Mono({
 }: HTMLAttributes<HTMLSpanElement>) {
   return (
     <span
-      className={cn("font-mono text-xs text-neutral-400", className)}
+      className={cn("font-mono text-xs text-muted-foreground", className)}
       {...props}
     />
   );
 }
 
+/**
+ * Relevance score uses the accent color so it pops in both modes and
+ * follows whatever palette the user picks (Monochrome / Emerald / Blue).
+ */
 export function ScoreLabel({
   value,
   className,
@@ -95,10 +97,10 @@ export function ScoreLabel({
         className,
       )}
     >
-      <span className="text-[10px] text-neutral-500 uppercase tracking-[0.15em]">
+      <span className="text-[10px] text-muted-foreground uppercase tracking-[0.15em]">
         score
       </span>
-      <span className="text-base font-semibold text-white">
+      <span className="text-base font-semibold text-accent">
         {value.toFixed(4)}
       </span>
     </span>

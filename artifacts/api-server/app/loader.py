@@ -61,27 +61,30 @@ def _flatten_json(value) -> List[str]:
     return out
 
 
-def _read_json(path: str) -> List[RawDocument]:
+def _read_json(path: str, display_name: str | None = None) -> List[RawDocument]:
     """
     JSON support strategy:
       * If the top-level is a list, treat each element as a separate document.
       * Otherwise treat the whole file as a single document.
     All string leaves are concatenated to form the document text.
+
+    `display_name` is the path used in the UI (relative to /data); falls back
+    to the file's basename when called outside the directory walker.
     """
+    label = display_name or os.path.basename(path)
     with open(path, "r", encoding="utf-8", errors="ignore") as fh:
         try:
             data = json.load(fh)
         except json.JSONDecodeError:
-            return [RawDocument(filename=os.path.basename(path), text=_read_txt(path))]
+            return [RawDocument(filename=label, text=_read_txt(path))]
 
-    base = os.path.basename(path)
     if isinstance(data, list):
         docs: List[RawDocument] = []
         for i, item in enumerate(data):
             text = "\n".join(_flatten_json(item))
-            docs.append(RawDocument(filename=f"{base}#{i}", text=text))
+            docs.append(RawDocument(filename=f"{label}#{i}", text=text))
         return docs
-    return [RawDocument(filename=base, text="\n".join(_flatten_json(data)))]
+    return [RawDocument(filename=label, text="\n".join(_flatten_json(data)))]
 
 
 def load_documents(data_dir: str) -> List[RawDocument]:
@@ -98,14 +101,19 @@ def load_documents(data_dir: str) -> List[RawDocument]:
     for root, _dirs, files in os.walk(data_dir):
         for name in sorted(files):
             path = os.path.join(root, name)
+            # Display the path RELATIVE to /data so nested corpora keep
+            # their folder context (e.g. "cats/intro.txt" vs "dogs/intro.txt"),
+            # which prevents collisions when the same basename appears in
+            # different sub-folders.
+            rel = os.path.relpath(path, data_dir).replace(os.sep, "/")
             ext = os.path.splitext(name)[1].lower()
             try:
                 if ext == ".txt":
-                    docs.append(RawDocument(filename=name, text=_read_txt(path)))
+                    docs.append(RawDocument(filename=rel, text=_read_txt(path)))
                 elif ext == ".pdf":
-                    docs.append(RawDocument(filename=name, text=_read_pdf(path)))
+                    docs.append(RawDocument(filename=rel, text=_read_pdf(path)))
                 elif ext == ".json":
-                    docs.extend(_read_json(path))
+                    docs.extend(_read_json(path, display_name=rel))
             except Exception:
                 # A single broken file should not crash the whole indexer.
                 continue
