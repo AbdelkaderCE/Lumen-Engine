@@ -91,14 +91,12 @@ export default function SearchPage() {
           className="flex flex-col items-center text-center gap-3"
         >
           <Badge className="gap-1.5">
-            <Sparkles className="size-3 text-primary" />
+            <Sparkles className="size-3 text-neutral-300" />
             Information Retrieval Engine
           </Badge>
           <DisplayTitle>
             Search your corpus with{" "}
-            <span className="bg-clip-text text-transparent bg-[linear-gradient(135deg,hsl(265_90%_75%),hsl(320_80%_70%),hsl(195_90%_70%))]">
-              two ranking models
-            </span>
+            <span className="text-white">two ranking models</span>
           </DisplayTitle>
           <Snippet className="max-w-2xl">{headerCaption}</Snippet>
         </motion.div>
@@ -193,8 +191,8 @@ export default function SearchPage() {
                 {response.results.length === 0 ? (
                   <GlassCard>
                     <GlassCardContent className="p-8 flex flex-col items-center text-center gap-3">
-                      <div className="flex size-12 items-center justify-center rounded-2xl bg-white/5 border border-white/10">
-                        <Inbox className="size-6 text-muted-foreground" />
+                      <div className="flex size-12 items-center justify-center rounded-lg bg-neutral-900/60 border border-neutral-700/60">
+                        <Inbox className="size-6 text-neutral-400" />
                       </div>
                       <SectionTitle>No matching documents</SectionTitle>
                       <Snippet>
@@ -215,8 +213,8 @@ export default function SearchPage() {
           {!response && !error && (
             <GlassCard>
               <GlassCardContent className="p-8 flex flex-col items-center text-center gap-3">
-                <div className="flex size-12 items-center justify-center rounded-2xl bg-white/5 border border-white/10">
-                  <Sparkles className="size-6 text-primary" />
+                <div className="flex size-12 items-center justify-center rounded-lg bg-neutral-900/60 border border-neutral-700/60">
+                  <Sparkles className="size-6 text-neutral-300" />
                 </div>
                 <SectionTitle>Run a query to see results</SectionTitle>
                 <Snippet className="max-w-md">

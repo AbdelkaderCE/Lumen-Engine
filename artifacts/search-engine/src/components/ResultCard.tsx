@@ -17,11 +17,6 @@ interface ResultCardProps {
   item: SearchResultItem;
 }
 
-/**
- * Highlight the snippet text by score: stronger primary tint for higher rank.
- * The visual emphasis is driven entirely by the design tokens, so adjusting
- * the palette in index.css cascades through every result card automatically.
- */
 export function ResultCard({ rank, item }: ResultCardProps) {
   const ext = item.filename.split(".").pop()?.toUpperCase() ?? "DOC";
 
@@ -31,16 +26,16 @@ export function ResultCard({ rank, item }: ResultCardProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: Math.min(rank * 0.04, 0.4) }}
     >
-      <GlassCard className="hover:bg-white/[0.03] transition-colors">
+      <GlassCard className="hover:border-neutral-600 transition-colors">
         <GlassCardContent className="p-5">
           <div className="flex items-start gap-4">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/5 border border-white/10">
-              <FileText className="size-5 text-primary" />
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-neutral-900/60 border border-neutral-700/60">
+              <FileText className="size-5 text-neutral-300" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-mono text-xs text-muted-foreground tabular-nums w-6">
+                  <span className="font-mono text-xs text-neutral-500 tabular-nums w-6">
                     #{rank}
                   </span>
                   <DocumentTitle title={item.filename}>

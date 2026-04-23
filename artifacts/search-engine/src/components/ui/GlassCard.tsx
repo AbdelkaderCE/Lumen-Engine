@@ -3,11 +3,10 @@ import { motion, type HTMLMotionProps } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 /**
- * GlassCard
- * ---------
- * The base "glass surface" container of the design system.
- * Every panel, card, or modal in the app should be built on top of this
- * component so the glassmorphism look stays mechanically consistent.
+ * GlassCard (monochromatic)
+ * -------------------------
+ * The base container of the design system. Every panel, card, or modal
+ * uses this so visual consistency is mechanical.
  */
 type GlassCardProps = HTMLMotionProps<"div"> & {
   variant?: "default" | "strong";
@@ -19,7 +18,7 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
       <motion.div
         ref={ref}
         className={cn(
-          "rounded-2xl",
+          "rounded-xl",
           variant === "strong" ? "glass-surface-strong" : "glass-surface",
           className,
         )}

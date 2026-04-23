@@ -1,7 +1,7 @@
 import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
-/** Lightweight glass badge used for tags, model labels, etc. */
+/** Lightweight monochromatic badge used for tags, model labels, etc. */
 export function Badge({
   className,
   ...props
@@ -9,8 +9,8 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center px-2.5 h-6 rounded-full text-xs font-medium",
-        "border border-white/10 bg-white/5 text-muted-foreground backdrop-blur-md",
+        "inline-flex items-center px-2.5 h-6 rounded-md text-xs font-medium",
+        "border border-neutral-700/60 bg-[#1A1A1A]/70 text-neutral-300",
         className,
       )}
       {...props}
