@@ -7,19 +7,27 @@ Two ranking strategies are implemented, both operating on the TF-IDF index:
     2) Extended Boolean -> p-norm aggregation (Salton, Fox & Wu, 1983)
 
 Both return the same shape of result so the API and UI can stay agnostic.
+
+Query handling
+--------------
+Every query term passes through two layers before being scored:
+    a) Porter stemming + stopword removal  (preprocessing.py)
+    b) Prefix expansion                    (expansion.py)
+The expansion turns "cos" into the vocabulary set {cosin, …} so the
+ranking models can find documents that share only a prefix with the query.
 """
 
 from __future__ import annotations
 
-import math
 import re
-from dataclasses import dataclass
-from typing import List, Tuple
+from dataclasses import dataclass, field
+from typing import Dict, List, Tuple
 
 import numpy as np
 
+from .expansion import expand_term, expand_query
 from .indexer import Index
-from .preprocessing import preprocess_query
+from .preprocessing import tokenize
 
 
 # ---------------------------------------------------------------------------
@@ -42,21 +50,22 @@ class SearchResult:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-def _query_tfidf_vector(index: Index, query_terms: List[str]) -> np.ndarray:
+def _query_tfidf_vector(index: Index, vocab_terms: List[str]) -> np.ndarray:
     """
     Build the TF-IDF vector for a query in the same vector space as the
     documents (same vocabulary, same IDF weights).
 
-    Terms in the query that are out-of-vocabulary contribute nothing —
-    they are silently ignored, which is the standard behavior.
+    `vocab_terms` is the FLAT list of vocabulary terms after preprocessing
+    AND prefix expansion: each occurrence contributes 1 to the raw TF.
+    Out-of-vocabulary entries are silently ignored.
     """
     V = len(index.vocabulary)
     q = np.zeros(V, dtype=np.float64)
     if V == 0:
         return q
 
-    # Raw term frequencies in the query
-    for term in query_terms:
+    # Raw term frequencies in the (expanded) query
+    for term in vocab_terms:
         idx = index.term_to_idx.get(term)
         if idx is not None:
             q[idx] += 1.0
@@ -71,39 +80,59 @@ def _query_tfidf_vector(index: Index, query_terms: List[str]) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # 1) Vectorial Model  -  TF-IDF + Cosine Similarity
 # ---------------------------------------------------------------------------
+@dataclass
+class VectorialOutcome:
+    results: List[SearchResult] = field(default_factory=list)
+    expansions: Dict[str, List[str]] = field(default_factory=dict)
+
+
 def vectorial_search(
     index: Index, query: str, top_k: int = 20
-) -> List[SearchResult]:
+) -> VectorialOutcome:
     """
-    Cosine similarity ranking.
+    Cosine similarity ranking with prefix expansion.
 
     Formula:
         sim(q, d) = (q · d) / ( ||q||_2 * ||d||_2 )
 
-    where q and d are TF-IDF weighted vectors.
-
-    Documents with a non-positive similarity are filtered out
-    (no shared vocabulary with the query).
+    where q and d are TF-IDF weighted vectors. The query vector q is
+    built from the *expanded* set of vocabulary terms, so a query token
+    like "cos" contributes mass to every vocabulary term beginning with
+    "cos" (such as the stem "cosin" produced from "cosine").
     """
     if not index.documents:
-        return []
+        return VectorialOutcome()
 
-    q_terms = preprocess_query(query)
-    if not q_terms:
-        return []
+    raw_tokens = tokenize(query)
+    if not raw_tokens:
+        return VectorialOutcome()
 
-    q_vec = _query_tfidf_vector(index, q_terms)
+    # Expand each raw token; keep a per-token map so we can return it for
+    # transparency (the UI shows what was actually searched).
+    per_token_expansions = expand_query(index, raw_tokens)
+    expansion_map: Dict[str, List[str]] = {
+        raw: exp for raw, exp in zip(raw_tokens, per_token_expansions) if exp
+    }
+
+    # Flatten -> list of vocabulary terms used to build the query vector.
+    flat_terms = [t for sub in per_token_expansions for t in sub]
+    if not flat_terms:
+        return VectorialOutcome(expansions=expansion_map)
+
+    q_vec = _query_tfidf_vector(index, flat_terms)
     q_norm = float(np.linalg.norm(q_vec))
     if q_norm == 0.0:
-        return []
+        return VectorialOutcome(expansions=expansion_map)
 
     # Numerator  = q · d  for every doc d  -> single matrix-vector product.
     numerators = q_vec @ index.tfidf                          # shape (N,)
     denominators = q_norm * index.doc_norms                   # shape (N,)
-    # Safe division (a doc with zero norm cannot match anything).
     similarities = np.where(denominators > 0, numerators / denominators, 0.0)
 
-    return _topk_results(index, similarities, top_k)
+    return VectorialOutcome(
+        results=_topk_results(index, similarities, top_k),
+        expansions=expansion_map,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -158,27 +187,42 @@ def _shunting_yard(tokens: List[str]) -> List[str]:
     return output
 
 
-def _term_membership(index: Index, term: str) -> np.ndarray:
-    """
-    Per-document score in [0, 1] for a single query term.
-
-    We use the *normalized* TF-IDF weight as the term's "degree of
-    membership" in each document, which is the standard way to feed
-    weighted documents into the Extended Boolean model.
-    """
+def _single_term_membership(index: Index, vocab_term: str) -> np.ndarray:
+    """Per-document membership in [0, 1] for a single vocabulary term,
+    using the normalized TF-IDF weight as fuzzy degree of membership."""
     N = len(index.documents)
-    pre = preprocess_query(term)
-    if not pre:
-        return np.zeros(N)
-    idx = index.term_to_idx.get(pre[0])
+    idx = index.term_to_idx.get(vocab_term)
     if idx is None:
         return np.zeros(N)
-
     weights = index.tfidf[idx, :].copy()
     max_w = float(weights.max()) if weights.size else 0.0
     if max_w <= 0.0:
         return np.zeros(N)
-    return weights / max_w  # values in [0, 1]
+    return weights / max_w
+
+
+def _term_membership(
+    index: Index, raw_term: str, expansions_log: Dict[str, List[str]]
+) -> np.ndarray:
+    """
+    Per-document score in [0, 1] for a single user query term, after
+    prefix expansion.
+
+    When a token expands to several vocabulary terms (e.g. "cos" -> {cosin,
+    code, …}) we take the *element-wise maximum* of their memberships.
+    Max is the classical Boolean OR and the natural choice for combining
+    alternative spellings of the same intent — a document is at least as
+    relevant as its best matching expansion.
+    """
+    N = len(index.documents)
+    expanded = expand_term(index, raw_term)
+    if expanded:
+        expansions_log.setdefault(raw_term, expanded)
+    if not expanded:
+        return np.zeros(N)
+    memberships = [_single_term_membership(index, t) for t in expanded]
+    stacked = np.stack(memberships, axis=0)        # shape (k, N)
+    return stacked.max(axis=0)
 
 
 def _p_norm_or(scores: List[np.ndarray], p: float) -> np.ndarray:
@@ -224,11 +268,18 @@ def _p_norm_not(score: np.ndarray) -> np.ndarray:
     return 1.0 - np.clip(score, 0.0, 1.0)
 
 
+@dataclass
+class BooleanOutcome:
+    results: List[SearchResult] = field(default_factory=list)
+    expansions: Dict[str, List[str]] = field(default_factory=dict)
+
+
 def extended_boolean_search(
     index: Index, query: str, p: float = 2.0, top_k: int = 20
-) -> List[SearchResult]:
+) -> BooleanOutcome:
     """
-    Evaluate an Extended Boolean (p-norm) query.
+    Evaluate an Extended Boolean (p-norm) query, with prefix expansion
+    applied to every operand.
 
     The query may contain AND, OR, NOT and parentheses, e.g.:
         (information AND retrieval) OR search
@@ -238,32 +289,35 @@ def extended_boolean_search(
     which is the conventional behavior when no explicit operator is given.
     """
     if not index.documents:
-        return []
+        return BooleanOutcome()
     if p <= 0:
         p = 1.0  # defensive: p must be positive
 
     tokens = _tokenize_boolean_query(query)
     if not tokens:
-        return []
+        return BooleanOutcome()
+
+    expansions_log: Dict[str, List[str]] = {}
 
     # If the query has no explicit operators, default to an OR over all terms.
     if not any(t in _OPERATORS for t in tokens):
         terms = [t for t in tokens if t not in ("(", ")")]
         if not terms:
-            return []
-        scores = [_term_membership(index, t) for t in terms]
+            return BooleanOutcome()
+        scores = [_term_membership(index, t, expansions_log) for t in terms]
         scores = [s for s in scores if s.size]
         if not scores:
-            return []
+            return BooleanOutcome(expansions=expansions_log)
         agg = _p_norm_or(scores, p) if len(scores) > 1 else scores[0]
-        return _topk_results(index, agg, top_k)
+        return BooleanOutcome(
+            results=_topk_results(index, agg, top_k),
+            expansions=expansions_log,
+        )
 
     # --- Otherwise evaluate the boolean expression with p-norm operators ---
     rpn = _shunting_yard(tokens)
     stack: List[Tuple[str, np.ndarray]] = []  # ("op"|"term", scores)
 
-    # Group consecutive operands of the same operator so OR/AND aggregate
-    # properly across more than two terms (a OR b OR c -> single p-norm OR).
     for tok in rpn:
         if tok == "NOT":
             if not stack:
@@ -273,28 +327,23 @@ def extended_boolean_search(
         elif tok in ("AND", "OR"):
             if len(stack) < 2:
                 continue
-            right_kind, right = stack.pop()
-            left_kind, left = stack.pop()
-
-            # Flatten chains of identical operators into n-ary aggregation.
-            operands: List[np.ndarray] = []
-            if left_kind == tok:
-                operands.append(left)
-            else:
-                operands.append(left)
-            operands.append(right)
-
+            _right_kind, right = stack.pop()
+            _left_kind, left = stack.pop()
+            operands = [left, right]
             if tok == "OR":
                 stack.append((tok, _p_norm_or(operands, p)))
             else:
                 stack.append((tok, _p_norm_and(operands, p)))
         else:
-            stack.append(("term", _term_membership(index, tok)))
+            stack.append(("term", _term_membership(index, tok, expansions_log)))
 
     if not stack:
-        return []
+        return BooleanOutcome(expansions=expansions_log)
     final = stack[-1][1]
-    return _topk_results(index, final, top_k)
+    return BooleanOutcome(
+        results=_topk_results(index, final, top_k),
+        expansions=expansions_log,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -305,8 +354,6 @@ def _topk_results(
 ) -> List[SearchResult]:
     if scores.size == 0:
         return []
-    # We only return strictly-positive scores; a 0 means "no match at all"
-    # under both ranking schemes.
     order = np.argsort(-scores)
     results: List[SearchResult] = []
     for j in order[: max(top_k, 0)]:

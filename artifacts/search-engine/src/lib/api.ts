@@ -15,6 +15,7 @@ export interface SearchResponse {
   query: string;
   total_documents: number;
   results: SearchResultItem[];
+  expansions: Record<string, string[]>;
 }
 
 export interface IndexStatus {

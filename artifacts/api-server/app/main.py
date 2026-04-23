@@ -14,7 +14,7 @@ route them correctly to this Python service.
 from __future__ import annotations
 
 import logging
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -101,6 +101,9 @@ class SearchResponse(BaseModel):
     query: str
     total_documents: int
     results: List[SearchResponseItem]
+    # Per-token prefix expansion map. Useful for the UI / project defense:
+    # shows exactly which vocabulary terms each user token was expanded to.
+    expansions: Dict[str, List[str]] = Field(default_factory=dict)
 
 
 class StatusResponse(BaseModel):
@@ -134,9 +137,9 @@ def search(req: SearchRequest) -> SearchResponse:
         raise HTTPException(status_code=400, detail="Query must not be empty.")
 
     if req.model == "vectorial":
-        results = vectorial_search(_INDEX, req.query, top_k=req.top_k)
+        outcome = vectorial_search(_INDEX, req.query, top_k=req.top_k)
     elif req.model == "boolean":
-        results = extended_boolean_search(
+        outcome = extended_boolean_search(
             _INDEX, req.query, p=req.p or 2.0, top_k=req.top_k
         )
     else:
@@ -147,5 +150,6 @@ def search(req: SearchRequest) -> SearchResponse:
         p=req.p if req.model == "boolean" else None,
         query=req.query,
         total_documents=len(_INDEX.documents),
-        results=[SearchResponseItem(**r.to_dict()) for r in results],
+        results=[SearchResponseItem(**r.to_dict()) for r in outcome.results],
+        expansions=outcome.expansions,
     )

@@ -173,19 +173,35 @@ export default function SearchPage() {
                 exit={{ opacity: 0 }}
                 className="flex flex-col gap-3"
               >
-                <div className="flex items-center justify-between gap-3 flex-wrap px-1">
-                  <SectionTitle>
-                    {response.results.length} result
-                    {response.results.length === 1 ? "" : "s"}
-                  </SectionTitle>
-                  <div className="flex items-center gap-2">
-                    <Badge>
-                      {response.model === "vectorial"
-                        ? "Vectorial · cosine"
-                        : `Boolean · p=${response.p?.toFixed(1)}`}
-                    </Badge>
-                    <Mono>“{response.query}”</Mono>
+                <div className="flex flex-col gap-2 px-1">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <SectionTitle>
+                      {response.results.length} result
+                      {response.results.length === 1 ? "" : "s"}
+                    </SectionTitle>
+                    <div className="flex items-center gap-2">
+                      <Badge>
+                        {response.model === "vectorial"
+                          ? "Vectorial · cosine"
+                          : `Boolean · p=${response.p?.toFixed(1)}`}
+                      </Badge>
+                      <Mono>“{response.query}”</Mono>
+                    </div>
                   </div>
+                  {Object.keys(response.expansions).length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Mono className="text-neutral-500">expanded:</Mono>
+                      {Object.entries(response.expansions).map(([raw, terms]) => (
+                        <Badge key={raw} className="gap-1.5">
+                          <span className="font-mono text-neutral-300">{raw}</span>
+                          <span className="text-neutral-500">→</span>
+                          <span className="font-mono text-neutral-100">
+                            {terms.join(", ")}
+                          </span>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {response.results.length === 0 ? (
