@@ -1,0 +1,14 @@
+[
+  {
+    "title": "Inverted Index",
+    "body": "An inverted index is the most efficient data structure for full-text search. It maps each term in the vocabulary to the list of documents that contain that term, enabling sub-linear query evaluation."
+  },
+  {
+    "title": "Cosine Similarity",
+    "body": "Cosine similarity measures the cosine of the angle between two non-zero vectors. In information retrieval it is used to compare the TF-IDF vector of a query against every document vector in the collection."
+  },
+  {
+    "title": "P-Norm Operators",
+    "body": "The Extended Boolean model uses p-norm operators to combine the relevance scores of individual query terms. As p approaches infinity the operators converge to classical AND and OR."
+  }
+]

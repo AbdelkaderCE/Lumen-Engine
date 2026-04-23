@@ -1,0 +1,6 @@
+Machine learning is a subfield of artificial intelligence that focuses on the
+development of algorithms that can learn from and make predictions on data.
+Supervised learning, unsupervised learning and reinforcement learning are the
+three main paradigms. Modern search engines combine traditional retrieval
+techniques such as TF-IDF and BM25 with learning-to-rank machine learning
+models to deliver highly relevant results.

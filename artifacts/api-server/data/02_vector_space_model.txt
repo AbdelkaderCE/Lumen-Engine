@@ -1,0 +1,6 @@
+The vector space model is an algebraic model for representing text documents
+as vectors of identifiers. Term frequency inverse document frequency, often
+abbreviated as TF-IDF, is a numerical statistic intended to reflect how
+important a word is to a document in a collection or corpus. The TF-IDF value
+increases proportionally to the number of times a word appears in the document
+but is offset by the frequency of the word in the corpus.

@@ -1,27 +1,47 @@
-# Workspace
+# Modular Search Engine
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+Full-stack Information Retrieval engine that indexes any `.txt`, `.pdf` or
+`.json` file dropped into `artifacts/api-server/data/` and exposes two
+ranking models:
 
-## Stack
+- **Vectorial Model** — TF-IDF weighting + cosine similarity
+- **Extended Boolean Model** — p-norm aggregation (Salton, Fox & Wu, 1983)
+  with full `AND` / `OR` / `NOT` / parentheses support.
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+## Architecture
 
-## Key Commands
+- **Backend** (`artifacts/api-server`, FastAPI + NumPy + NLTK)
+  - `app/preprocessing.py` — tokenization, stop-word removal, Porter stemmer
+  - `app/loader.py` — data-agnostic reader for txt / pdf / json
+  - `app/indexer.py` — TF-IDF matrix, IDF vector, document norms
+  - `app/models.py` — vectorial (cosine) and extended boolean (p-norm) search
+  - `app/main.py` — FastAPI app exposing `/api/healthz`, `/api/status`,
+    `/api/search`, `/api/reindex`
+- **Frontend** (`artifacts/search-engine`, React + Vite + Tailwind v4 + Framer Motion)
+  - **Glassmorphism design system** in `src/components/ui/`:
+    `GlassCard`, `GlassButton`, `GlassInput`, `GlassToggleGroup`,
+    `GlassSlider`, `Badge`, `Typography` (DisplayTitle, SectionTitle,
+    DocumentTitle, Snippet, Mono, ScoreLabel)
+  - Surface tokens (`.glass-surface`, `.glass-surface-strong`,
+    `.glass-input`) defined in `src/index.css`
+  - Page composition in `src/pages/SearchPage.tsx`
 
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/api-server run dev` — run API server locally
+## Mathematical formulas
 
-See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+- TF (sub-linear): `tf_w = 1 + log10(tf)` if `tf > 0`, else `0`
+- IDF: `idf_t = log10(N / df_t)`
+- Cosine similarity: `sim(q,d) = (q·d) / (||q|| · ||d||)`
+- Extended Boolean OR_p: `( (Σ w_i^p) / n )^(1/p)`
+- Extended Boolean AND_p: `1 - ( (Σ (1-w_i)^p) / n )^(1/p)`
+- NOT (fuzzy): `1 - w`
+
+All formulas are documented inline in `app/models.py` and `app/indexer.py`
+for project defense purposes.
+
+## Adding documents
+
+Drop any `.txt`, `.pdf` or `.json` file into
+`artifacts/api-server/data/` and click **Reindex /data** in the UI (or
+`POST /api/reindex`).

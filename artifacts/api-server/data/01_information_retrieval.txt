@@ -1,0 +1,6 @@
+Information Retrieval is the science of searching for information in documents,
+searching for documents themselves, searching for metadata that describes data,
+and searching within databases. The classic vector space model represents
+documents and queries as vectors of identifiers such as index terms. Cosine
+similarity is one of the most popular similarity measures used to compare a
+query vector with each document vector in the collection.

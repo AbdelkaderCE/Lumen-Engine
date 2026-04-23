@@ -1,0 +1,7 @@
+The Boolean retrieval model is a classical model of information retrieval
+based on Boolean logic and classical set theory. Documents and queries are
+treated as sets of terms, and retrieval is based on whether the documents
+contain the query terms. The Extended Boolean model proposed by Salton, Fox
+and Wu in 1983 introduces the p-norm aggregation, which generalizes the
+Boolean operators AND and OR to weighted documents and produces a graded
+ranking instead of a binary match.

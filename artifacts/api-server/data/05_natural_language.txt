@@ -1,0 +1,6 @@
+Natural language processing is a branch of computer science and linguistics
+concerned with the interactions between computers and human languages.
+Tokenization, stop-word removal and stemming are preprocessing techniques
+that prepare raw text for downstream tasks such as information retrieval,
+text classification and machine translation. The Porter stemmer is one of
+the most widely used stemming algorithms for English.
