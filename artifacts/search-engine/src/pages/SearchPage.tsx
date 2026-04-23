@@ -188,7 +188,7 @@ export default function SearchPage() {
                       <Mono>“{response.query}”</Mono>
                     </div>
                   </div>
-                  {Object.keys(response.expansions).length > 0 && (
+                  {response.expansions && Object.keys(response.expansions).length > 0 && (
                     <div className="flex flex-wrap items-center gap-2">
                       <Mono className="text-neutral-500">expanded:</Mono>
                       {Object.entries(response.expansions).map(([raw, terms]) => (
