@@ -113,7 +113,10 @@ def vectorial_search(
     }
 
     import logging
-    logging.getLogger("search-engine").info("Expansion results: %s", expansion_map)
+    logger = logging.getLogger("search-engine")
+    logger.info("Search Logic: use_prefix_expansion=%s", use_prefix_expansion)
+    logger.info("Raw Tokens: %s", raw_tokens)
+    logger.info("Expansion Map: %s", expansion_map)
 
     # Build weighted term list for the vector
     weighted_terms: List[Tuple[str, float]] = []
