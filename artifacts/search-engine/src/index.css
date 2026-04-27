@@ -67,6 +67,7 @@
   --destructive-foreground: 0 0% 98%;
   --input: 0 0% 12%;
   --ring: 0 0% 80%;
+  --badge-outline: 0 0% 30%;
 
   /* Glass surface tokens (raw RGB so we can adjust opacity inline). */
   --glass-bg: 26 26 26;             /* #1A1A1A */
@@ -102,6 +103,7 @@
   --destructive-foreground: 0 0% 98%;
   --input: 0 0% 96%;
   --ring: 0 0% 20%;
+  --badge-outline: 0 0% 85%;
 
   --glass-bg: 255 255 255;
   --glass-border: 0 0% 0%;          /* used as rgb(0 0 0 / alpha) below */

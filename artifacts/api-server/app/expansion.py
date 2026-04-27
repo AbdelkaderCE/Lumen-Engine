@@ -42,7 +42,7 @@ def _vocab_starting_with(index: Index, prefix: str) -> List[str]:
     return [t for t in index.vocabulary if t.startswith(prefix)]
 
 
-def expand_term(index: Index, raw_token: str) -> List[str]:
+def expand_term(index: Index, raw_token: str, do_expand: bool = True) -> List[str]:
     """
     Expand a single raw user token into one or more vocabulary terms.
 
@@ -66,22 +66,26 @@ def expand_term(index: Index, raw_token: str) -> List[str]:
     raw = pieces[0]
     stem = _STEMMER.stem(raw)
 
-    # 1. Exact stem hit -> no expansion needed.
+    # 1. If expansion is OFF, we ONLY allow the exact stem hit.
+    if not do_expand:
+        if stem in index.term_to_idx:
+            return [stem]
+        return []
+
+    # 2. If expansion is ON, we first check for exact stem hit.
     if stem in index.term_to_idx:
         return [stem]
 
-    # 2. Prefer the raw (un-stemmed) prefix because it's more specific.
+    # 3. Otherwise, perform prefix expansion.
     matches = _vocab_starting_with(index, raw)
-
-    # 3. Fall back to the stem prefix if the raw token matched nothing.
     if not matches and stem and stem != raw:
         matches = _vocab_starting_with(index, stem)
 
     return matches[:MAX_EXPANSIONS_PER_TERM]
 
 
-def expand_query(index: Index, raw_tokens: List[str]) -> List[List[str]]:
+def expand_query(index: Index, raw_tokens: List[str], do_expand: bool = True) -> List[List[str]]:
     """Expand each raw query token. Returns one expansion list per token,
     preserving order so callers know which expansions came from which
     original term (useful for explainability in the API response)."""
-    return [expand_term(index, t) for t in raw_tokens]
+    return [expand_term(index, t, do_expand=do_expand) for t in raw_tokens]

@@ -87,6 +87,7 @@ class SearchRequest(BaseModel):
         "p=1 -> lenient, p->∞ -> strict (classical boolean).",
     )
     top_k: int = Field(10, ge=1, le=100, description="Maximum results to return.")
+    expand: bool = Field(True, description="Whether to expand query terms via prefix matching.")
 
 
 class SearchResponseItem(BaseModel):
@@ -136,11 +137,13 @@ def search(req: SearchRequest) -> SearchResponse:
     if not req.query.strip():
         raise HTTPException(status_code=400, detail="Query must not be empty.")
 
+    logger.info("Search: model=%s, expand=%s, query='%s'", req.model, req.expand, req.query)
+
     if req.model == "vectorial":
-        outcome = vectorial_search(_INDEX, req.query, top_k=req.top_k)
+        outcome = vectorial_search(_INDEX, req.query, top_k=req.top_k, do_expand=req.expand)
     elif req.model == "boolean":
         outcome = extended_boolean_search(
-            _INDEX, req.query, p=req.p or 2.0, top_k=req.top_k
+            _INDEX, req.query, p=req.p or 2.0, top_k=req.top_k, do_expand=req.expand
         )
     else:
         raise HTTPException(status_code=400, detail=f"Unknown model: {req.model}")

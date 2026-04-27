@@ -51,6 +51,7 @@ export function runSearch(params: {
   model: SearchModel;
   p?: number;
   topK?: number;
+  expand?: boolean;
 }): Promise<SearchResponse> {
   return jsonFetch<SearchResponse>("/search", {
     method: "POST",
@@ -59,6 +60,7 @@ export function runSearch(params: {
       model: params.model,
       p: params.p ?? 2.0,
       top_k: params.topK ?? 10,
+      expand: params.expand ?? true,
     }),
   });
 }

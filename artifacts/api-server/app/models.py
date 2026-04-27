@@ -87,7 +87,7 @@ class VectorialOutcome:
 
 
 def vectorial_search(
-    index: Index, query: str, top_k: int = 20
+    index: Index, query: str, top_k: int = 20, do_expand: bool = True
 ) -> VectorialOutcome:
     """
     Cosine similarity ranking with prefix expansion.
@@ -109,10 +109,13 @@ def vectorial_search(
 
     # Expand each raw token; keep a per-token map so we can return it for
     # transparency (the UI shows what was actually searched).
-    per_token_expansions = expand_query(index, raw_tokens)
+    per_token_expansions = expand_query(index, raw_tokens, do_expand=do_expand)
     expansion_map: Dict[str, List[str]] = {
         raw: exp for raw, exp in zip(raw_tokens, per_token_expansions) if exp
     }
+
+    import logging
+    logging.getLogger("search-engine").info("Expansion results: %s", expansion_map)
 
     # Flatten -> list of vocabulary terms used to build the query vector.
     flat_terms = [t for sub in per_token_expansions for t in sub]
@@ -202,7 +205,7 @@ def _single_term_membership(index: Index, vocab_term: str) -> np.ndarray:
 
 
 def _term_membership(
-    index: Index, raw_term: str, expansions_log: Dict[str, List[str]]
+    index: Index, raw_term: str, expansions_log: Dict[str, List[str]], do_expand: bool = True
 ) -> np.ndarray:
     """
     Per-document score in [0, 1] for a single user query term, after
@@ -215,7 +218,7 @@ def _term_membership(
     relevant as its best matching expansion.
     """
     N = len(index.documents)
-    expanded = expand_term(index, raw_term)
+    expanded = expand_term(index, raw_term, do_expand=do_expand)
     if expanded:
         expansions_log.setdefault(raw_term, expanded)
     if not expanded:
@@ -275,7 +278,7 @@ class BooleanOutcome:
 
 
 def extended_boolean_search(
-    index: Index, query: str, p: float = 2.0, top_k: int = 20
+    index: Index, query: str, p: float = 2.0, top_k: int = 20, do_expand: bool = True
 ) -> BooleanOutcome:
     """
     Evaluate an Extended Boolean (p-norm) query, with prefix expansion
@@ -304,7 +307,7 @@ def extended_boolean_search(
         terms = [t for t in tokens if t not in ("(", ")")]
         if not terms:
             return BooleanOutcome()
-        scores = [_term_membership(index, t, expansions_log) for t in terms]
+        scores = [_term_membership(index, t, expansions_log, do_expand=do_expand) for t in terms]
         scores = [s for s in scores if s.size]
         if not scores:
             return BooleanOutcome(expansions=expansions_log)
@@ -335,7 +338,7 @@ def extended_boolean_search(
             else:
                 stack.append((tok, _p_norm_and(operands, p)))
         else:
-            stack.append(("term", _term_membership(index, tok, expansions_log)))
+            stack.append(("term", _term_membership(index, tok, expansions_log, do_expand=do_expand)))
 
     if not stack:
         return BooleanOutcome(expansions=expansions_log)

@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { GlassToggleGroup } from "@/components/ui/GlassToggleGroup";
 import { GlassSlider } from "@/components/ui/GlassSlider";
+import { GlassSwitch } from "@/components/ui/GlassSwitch";
 import { Mono, SectionTitle } from "@/components/ui/Typography";
 import type { SearchModel } from "@/lib/api";
 
@@ -9,6 +10,10 @@ interface ModelControlsProps {
   onModelChange: (m: SearchModel) => void;
   p: number;
   onPChange: (p: number) => void;
+  isCompareMode: boolean;
+  onCompareModeChange: (v: boolean) => void;
+  expand: boolean;
+  onExpandChange: (v: boolean) => void;
 }
 
 export function ModelControls({
@@ -16,23 +21,46 @@ export function ModelControls({
   onModelChange,
   p,
   onPChange,
+  isCompareMode,
+  onCompareModeChange,
+  expand,
+  onExpandChange,
 }: ModelControlsProps) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <SectionTitle>Ranking model</SectionTitle>
-        <GlassToggleGroup
-          value={model}
-          onChange={(v: SearchModel) => onModelChange(v)}
-          options={[
-            { value: "vectorial", label: "Vectorial · TF-IDF" },
-            { value: "boolean", label: "Extended Boolean · p-norm" },
-          ]}
-        />
+        <div className="flex flex-col gap-1">
+          <SectionTitle>Ranking model</SectionTitle>
+          <Mono className="text-[10px] uppercase tracking-wider">Choose search logic</Mono>
+        </div>
+        <div className="flex items-center gap-3">
+          <GlassToggleGroup
+            value={isCompareMode ? "compare" : model}
+            onChange={(v: string) => {
+              if (v === "compare") {
+                onCompareModeChange(true);
+              } else {
+                onCompareModeChange(false);
+                onModelChange(v as SearchModel);
+              }
+            }}
+            options={[
+              { value: "vectorial", label: "Vectorial" },
+              { value: "boolean", label: "Boolean" },
+              { value: "compare", label: "Compare Models" },
+            ]}
+          />
+          <div className="w-px h-6 bg-border/50 mx-1" />
+          <GlassSwitch 
+            label="Semantic Expansion" 
+            checked={expand} 
+            onChange={onExpandChange} 
+          />
+        </div>
       </div>
 
       <AnimatePresence initial={false}>
-        {model === "boolean" && (
+        {(model === "boolean" || isCompareMode) && (
           <motion.div
             key="p-control"
             initial={{ opacity: 0, height: 0 }}
