@@ -57,7 +57,7 @@ export default function SearchPage() {
   // Search controls ----------------------------------------------------------
   const [model, setModel] = useState<SearchModel>("vectorial");
   const [isCompareMode, setIsCompareMode] = useState(false);
-  const [expand, setExpand] = useState(true);
+  const [usePrefixExpansion, setUsePrefixExpansion] = useState(true);
   const [p, setP] = useState(2.0);
   const [lastQuery, setLastQuery] = useState("");
 
@@ -74,13 +74,13 @@ export default function SearchPage() {
     try {
       if (isCompareMode) {
         const [vectorial, boolean] = await Promise.all([
-          runSearch({ query, model: "vectorial", p, topK: 20, expand }),
-          runSearch({ query, model: "boolean", p, topK: 20, expand }),
+          runSearch({ query, model: "vectorial", p, topK: 20, usePrefixExpansion }),
+          runSearch({ query, model: "boolean", p, topK: 20, usePrefixExpansion }),
         ]);
         setCompareResponses({ vectorial, boolean });
         setResponse(null);
       } else {
-        const r = await runSearch({ query, model, p, topK: 20, expand });
+        const r = await runSearch({ query, model, p, topK: 20, usePrefixExpansion });
         setResponse(r);
         setCompareResponses(null);
       }
@@ -98,7 +98,7 @@ export default function SearchPage() {
     if (lastQuery) {
       handleSearch(lastQuery);
     }
-  }, [model, p, expand, isCompareMode]);
+  }, [model, p, usePrefixExpansion, isCompareMode]);
 
   const headerCaption = useMemo(() => {
     if (isCompareMode) return "Comparing Vectorial and Extended Boolean models side-by-side.";
@@ -194,8 +194,8 @@ export default function SearchPage() {
               onPChange={setP}
               isCompareMode={isCompareMode}
               onCompareModeChange={setIsCompareMode}
-              expand={expand}
-              onExpandChange={setExpand}
+              usePrefixExpansion={usePrefixExpansion}
+              onUsePrefixExpansionChange={setUsePrefixExpansion}
             />
             <div className="glass-divider" />
             <SearchBar

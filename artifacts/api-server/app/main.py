@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 
 from .indexer import DEFAULT_DATA_DIR, Index, build_index, index_stats
 from .models import extended_boolean_search, vectorial_search
+from .preprocessing import _STEMMER
 
 logger = logging.getLogger("search-engine")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -87,7 +88,7 @@ class SearchRequest(BaseModel):
         "p=1 -> lenient, p->∞ -> strict (classical boolean).",
     )
     top_k: int = Field(10, ge=1, le=100, description="Maximum results to return.")
-    expand: bool = Field(True, description="Whether to expand query terms via prefix matching.")
+    use_prefix_expansion: bool = Field(True, description="Whether to expand query terms via prefix matching.")
 
 
 class SearchResponseItem(BaseModel):
@@ -137,13 +138,13 @@ def search(req: SearchRequest) -> SearchResponse:
     if not req.query.strip():
         raise HTTPException(status_code=400, detail="Query must not be empty.")
 
-    logger.info("Search: model=%s, expand=%s, query='%s'", req.model, req.expand, req.query)
+    logger.info("Search: model=%s, use_prefix_expansion=%s, query='%s'", req.model, req.use_prefix_expansion, req.query)
 
     if req.model == "vectorial":
-        outcome = vectorial_search(_INDEX, req.query, top_k=req.top_k, do_expand=req.expand)
+        outcome = vectorial_search(_INDEX, req.query, top_k=req.top_k, use_prefix_expansion=req.use_prefix_expansion)
     elif req.model == "boolean":
         outcome = extended_boolean_search(
-            _INDEX, req.query, p=req.p or 2.0, top_k=req.top_k, do_expand=req.expand
+            _INDEX, req.query, p=req.p or 2.0, top_k=req.top_k, use_prefix_expansion=req.use_prefix_expansion
         )
     else:
         raise HTTPException(status_code=400, detail=f"Unknown model: {req.model}")

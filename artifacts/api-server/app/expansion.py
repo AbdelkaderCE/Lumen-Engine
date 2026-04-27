@@ -31,6 +31,8 @@ from .preprocessing import _STEMMER, tokenize
 # Soft cap so an over-eager 1-letter prefix (e.g. "a") doesn't pull the
 # entire vocabulary into the query and dilute scoring.
 MAX_EXPANSIONS_PER_TERM = 25
+# Soft cap to keep scoring focused.
+MAX_EXPANSIONS_PER_TERM = 10
 
 
 def _vocab_starting_with(index: Index, prefix: str) -> List[str]:
@@ -42,49 +44,41 @@ def _vocab_starting_with(index: Index, prefix: str) -> List[str]:
     return [t for t in index.vocabulary if t.startswith(prefix)]
 
 
-def expand_term(index: Index, raw_token: str, do_expand: bool = True) -> List[str]:
+def expand_term(index: Index, raw_token: str, use_prefix_expansion: bool = True) -> List[str]:
     """
     Expand a single raw user token into one or more vocabulary terms.
 
-    Strategy:
-        - Lowercase and stem the token (same pipeline as documents).
-        - If the stem is already in the vocabulary, return just [stem].
-        - Otherwise try the *raw* lowered token as a prefix first
-          (stricter, because "cos" matches "cosin" but the stem "co"
-          would over-expand).
-        - Fall back to the stem as a prefix if the raw prefix yielded
-          nothing.
-        - Cap the number of expansions to keep scoring focused.
+    Rules:
+        1. If expansion is OFF, only allow exact stem hit.
+        2. If expansion is ON, only expand if token length >= 3.
+        3. Exact stem hit is ALWAYS included with full weight.
+        4. Prefix matches are capped at 10.
     """
     if not raw_token:
         return []
 
-    # Use the same tokenizer the indexer uses so we strip punctuation, etc.
     pieces = tokenize(raw_token)
     if not pieces:
         return []
     raw = pieces[0]
     stem = _STEMMER.stem(raw)
 
-    # 1. If expansion is OFF, we ONLY allow the exact stem hit.
-    if not do_expand:
-        if stem in index.term_to_idx:
-            return [stem]
-        return []
+    # 1. Exact match (stem) - always allowed
+    exact_hit = [stem] if stem in index.term_to_idx else []
 
-    # 2. If expansion is ON, we perform a broad prefix search.
-    # We collect the exact stem hit AND any other words starting with this prefix.
-    matches = []
-    if stem in index.term_to_idx:
-        matches.append(stem)
+    if not use_prefix_expansion or len(raw) < 3:
+        return exact_hit
 
-    # Prefix match using the raw token (more specific)
+    # 2. Perform prefix expansion
+    matches = list(exact_hit)
+    
+    # Prefix match using the raw token
     raw_matches = _vocab_starting_with(index, raw)
     for m in raw_matches:
         if m not in matches:
             matches.append(m)
 
-    # Fallback to stem prefix match if we still have very few results
+    # Fallback to stem prefix match
     if len(matches) < 2 and stem and stem != raw:
         stem_matches = _vocab_starting_with(index, stem)
         for m in stem_matches:
@@ -94,8 +88,6 @@ def expand_term(index: Index, raw_token: str, do_expand: bool = True) -> List[st
     return matches[:MAX_EXPANSIONS_PER_TERM]
 
 
-def expand_query(index: Index, raw_tokens: List[str], do_expand: bool = True) -> List[List[str]]:
-    """Expand each raw query token. Returns one expansion list per token,
-    preserving order so callers know which expansions came from which
-    original term (useful for explainability in the API response)."""
-    return [expand_term(index, t, do_expand=do_expand) for t in raw_tokens]
+def expand_query(index: Index, raw_tokens: List[str], use_prefix_expansion: bool = True) -> List[List[str]]:
+    """Expand each raw query token."""
+    return [expand_term(index, t, use_prefix_expansion=use_prefix_expansion) for t in raw_tokens]

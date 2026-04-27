@@ -12,8 +12,8 @@ interface ModelControlsProps {
   onPChange: (p: number) => void;
   isCompareMode: boolean;
   onCompareModeChange: (v: boolean) => void;
-  expand: boolean;
-  onExpandChange: (v: boolean) => void;
+  usePrefixExpansion: boolean;
+  onUsePrefixExpansionChange: (v: boolean) => void;
 }
 
 export function ModelControls({
@@ -23,8 +23,8 @@ export function ModelControls({
   onPChange,
   isCompareMode,
   onCompareModeChange,
-  expand,
-  onExpandChange,
+  usePrefixExpansion,
+  onUsePrefixExpansionChange,
 }: ModelControlsProps) {
   return (
     <div className="flex flex-col gap-4">
@@ -52,9 +52,9 @@ export function ModelControls({
           />
           <div className="w-px h-6 bg-border/50 mx-1" />
           <GlassSwitch 
-            label="Semantic Expansion" 
-            checked={expand} 
-            onChange={onExpandChange} 
+            label="Prefix Expansion" 
+            checked={usePrefixExpansion} 
+            onChange={onUsePrefixExpansionChange} 
           />
         </div>
       </div>

@@ -27,7 +27,7 @@ import numpy as np
 
 from .expansion import expand_term, expand_query
 from .indexer import Index
-from .preprocessing import tokenize
+from .preprocessing import tokenize, _STEMMER
 
 
 # ---------------------------------------------------------------------------
@@ -50,27 +50,25 @@ class SearchResult:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-def _query_tfidf_vector(index: Index, vocab_terms: List[str]) -> np.ndarray:
+def _query_tfidf_vector(index: Index, weighted_terms: List[Tuple[str, float]]) -> np.ndarray:
     """
-    Build the TF-IDF vector for a query in the same vector space as the
-    documents (same vocabulary, same IDF weights).
-
-    `vocab_terms` is the FLAT list of vocabulary terms after preprocessing
-    AND prefix expansion: each occurrence contributes 1 to the raw TF.
-    Out-of-vocabulary entries are silently ignored.
+    Build the TF-IDF vector for a query.
+    `weighted_terms` is a list of (vocabulary_term, importance_weight).
+    The importance_weight (e.g. 1.0 for exact, 0.5 for expansion) is applied
+    to the raw term frequency.
     """
     V = len(index.vocabulary)
     q = np.zeros(V, dtype=np.float64)
     if V == 0:
         return q
 
-    # Raw term frequencies in the (expanded) query
-    for term in vocab_terms:
+    # Weighted term frequencies
+    for term, weight in weighted_terms:
         idx = index.term_to_idx.get(term)
         if idx is not None:
-            q[idx] += 1.0
+            q[idx] += weight
 
-    # Apply the same sub-linear TF + IDF transformation as documents
+    # Apply sub-linear TF + IDF transformation
     with np.errstate(divide="ignore"):
         q = np.where(q > 0, 1.0 + np.log10(np.where(q > 0, q, 1)), 0.0)
     q = q * index.idf
@@ -87,7 +85,7 @@ class VectorialOutcome:
 
 
 def vectorial_search(
-    index: Index, query: str, top_k: int = 20, do_expand: bool = True
+    index: Index, query: str, top_k: int = 20, use_prefix_expansion: bool = True
 ) -> VectorialOutcome:
     """
     Cosine similarity ranking with prefix expansion.
@@ -109,7 +107,7 @@ def vectorial_search(
 
     # Expand each raw token; keep a per-token map so we can return it for
     # transparency (the UI shows what was actually searched).
-    per_token_expansions = expand_query(index, raw_tokens, do_expand=do_expand)
+    per_token_expansions = expand_query(index, raw_tokens, use_prefix_expansion=use_prefix_expansion)
     expansion_map: Dict[str, List[str]] = {
         raw: exp for raw, exp in zip(raw_tokens, per_token_expansions) if exp
     }
@@ -117,12 +115,21 @@ def vectorial_search(
     import logging
     logging.getLogger("search-engine").info("Expansion results: %s", expansion_map)
 
-    # Flatten -> list of vocabulary terms used to build the query vector.
-    flat_terms = [t for sub in per_token_expansions for t in sub]
-    if not flat_terms:
+    # Build weighted term list for the vector
+    weighted_terms: List[Tuple[str, float]] = []
+    for raw, expanded_list in zip(raw_tokens, per_token_expansions):
+        if not expanded_list: continue
+        # The first term (if it's the stem) gets full weight.
+        # Following matches from prefix expansion get 0.5.
+        raw_stem = _STEMMER.stem(raw.lower())
+        for i, term in enumerate(expanded_list):
+            weight = 1.0 if term == raw_stem else 0.5
+            weighted_terms.append((term, weight))
+
+    if not weighted_terms:
         return VectorialOutcome(expansions=expansion_map)
 
-    q_vec = _query_tfidf_vector(index, flat_terms)
+    q_vec = _query_tfidf_vector(index, weighted_terms)
     q_norm = float(np.linalg.norm(q_vec))
     if q_norm == 0.0:
         return VectorialOutcome(expansions=expansion_map)
@@ -205,7 +212,7 @@ def _single_term_membership(index: Index, vocab_term: str) -> np.ndarray:
 
 
 def _term_membership(
-    index: Index, raw_term: str, expansions_log: Dict[str, List[str]], do_expand: bool = True
+    index: Index, raw_term: str, expansions_log: Dict[str, List[str]], use_prefix_expansion: bool = True
 ) -> np.ndarray:
     """
     Per-document score in [0, 1] for a single user query term, after
@@ -218,12 +225,21 @@ def _term_membership(
     relevant as its best matching expansion.
     """
     N = len(index.documents)
-    expanded = expand_term(index, raw_term, do_expand=do_expand)
+    expanded = expand_term(index, raw_term, use_prefix_expansion=use_prefix_expansion)
     if expanded:
         expansions_log.setdefault(raw_term, expanded)
     if not expanded:
         return np.zeros(N)
-    memberships = [_single_term_membership(index, t) for t in expanded]
+
+    raw_stem = _STEMMER.stem(raw_term.lower())
+    memberships = []
+    for term in expanded:
+        m = _single_term_membership(index, term)
+        # Apply 0.5 weight to expansion terms (not the stem)
+        if term != raw_stem:
+            m = m * 0.5
+        memberships.append(m)
+
     stacked = np.stack(memberships, axis=0)        # shape (k, N)
     return stacked.max(axis=0)
 
@@ -278,7 +294,7 @@ class BooleanOutcome:
 
 
 def extended_boolean_search(
-    index: Index, query: str, p: float = 2.0, top_k: int = 20, do_expand: bool = True
+    index: Index, query: str, p: float = 2.0, top_k: int = 20, use_prefix_expansion: bool = True
 ) -> BooleanOutcome:
     """
     Evaluate an Extended Boolean (p-norm) query, with prefix expansion
@@ -307,7 +323,7 @@ def extended_boolean_search(
         terms = [t for t in tokens if t not in ("(", ")")]
         if not terms:
             return BooleanOutcome()
-        scores = [_term_membership(index, t, expansions_log, do_expand=do_expand) for t in terms]
+        scores = [_term_membership(index, t, expansions_log, use_prefix_expansion=use_prefix_expansion) for t in terms]
         scores = [s for s in scores if s.size]
         if not scores:
             return BooleanOutcome(expansions=expansions_log)
@@ -338,7 +354,7 @@ def extended_boolean_search(
             else:
                 stack.append((tok, _p_norm_and(operands, p)))
         else:
-            stack.append(("term", _term_membership(index, tok, expansions_log, do_expand=do_expand)))
+            stack.append(("term", _term_membership(index, tok, expansions_log, use_prefix_expansion=use_prefix_expansion)))
 
     if not stack:
         return BooleanOutcome(expansions=expansions_log)
