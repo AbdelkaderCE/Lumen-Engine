@@ -72,14 +72,24 @@ def expand_term(index: Index, raw_token: str, do_expand: bool = True) -> List[st
             return [stem]
         return []
 
-    # 2. If expansion is ON, we first check for exact stem hit.
+    # 2. If expansion is ON, we perform a broad prefix search.
+    # We collect the exact stem hit AND any other words starting with this prefix.
+    matches = []
     if stem in index.term_to_idx:
-        return [stem]
+        matches.append(stem)
 
-    # 3. Otherwise, perform prefix expansion.
-    matches = _vocab_starting_with(index, raw)
-    if not matches and stem and stem != raw:
-        matches = _vocab_starting_with(index, stem)
+    # Prefix match using the raw token (more specific)
+    raw_matches = _vocab_starting_with(index, raw)
+    for m in raw_matches:
+        if m not in matches:
+            matches.append(m)
+
+    # Fallback to stem prefix match if we still have very few results
+    if len(matches) < 2 and stem and stem != raw:
+        stem_matches = _vocab_starting_with(index, stem)
+        for m in stem_matches:
+            if m not in matches:
+                matches.append(m)
 
     return matches[:MAX_EXPANSIONS_PER_TERM]
 
