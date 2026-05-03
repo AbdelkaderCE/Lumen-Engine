@@ -3,19 +3,48 @@
 
 export type SearchModel = "vectorial" | "boolean";
 
+export type VectorialSimilarity = "cosine" | "scalar" | "euclidean" | "jaccard" | "dice";
+
 export interface SearchResultItem {
   filename: string;
   snippet: string;
   score: number;
+  debug?: {
+    contributions?: Record<string, number>;
+    memberships?: Record<string, number>;
+  };
 }
 
 export interface SearchResponse {
   model: SearchModel;
+  similarity?: VectorialSimilarity;
   p: number | null;
   query: string;
   total_documents: number;
   results: SearchResultItem[];
   expansions: Record<string, string[]>;
+  viz_data?: {
+    query_string: string;
+    axes: [string, string, string];
+    query: [number, number, number];
+    documents: {
+      filename: string;
+      pos: [number, number, number];
+      score: number;
+    }[];
+  };
+  debug?: {
+    formula: string;
+    query_vectorization?: {
+      term: string;
+      tf: number;
+      idf: number;
+      final_weight: number;
+    }[];
+    query_vector_non_zero?: Record<string, number>;
+    rpn?: string[];
+    p?: number;
+  };
 }
 
 export interface IndexStatus {
@@ -49,6 +78,7 @@ export function reindex(): Promise<IndexStatus> {
 export function runSearch(params: {
   query: string;
   model: SearchModel;
+  similarity?: VectorialSimilarity;
   p?: number;
   topK?: number;
   usePrefixExpansion?: boolean;
@@ -58,6 +88,7 @@ export function runSearch(params: {
     body: JSON.stringify({
       query: params.query,
       model: params.model,
+      similarity: params.similarity ?? "cosine",
       p: params.p ?? 2.0,
       top_k: params.topK ?? 10,
       use_prefix_expansion: params.usePrefixExpansion ?? true,

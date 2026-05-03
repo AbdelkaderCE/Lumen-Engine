@@ -3,11 +3,13 @@ import { GlassToggleGroup } from "@/components/ui/GlassToggleGroup";
 import { GlassSlider } from "@/components/ui/GlassSlider";
 import { GlassSwitch } from "@/components/ui/GlassSwitch";
 import { Mono, SectionTitle } from "@/components/ui/Typography";
-import type { SearchModel } from "@/lib/api";
+import type { SearchModel, VectorialSimilarity } from "@/lib/api";
 
 interface ModelControlsProps {
   model: SearchModel;
   onModelChange: (m: SearchModel) => void;
+  similarity: VectorialSimilarity;
+  onSimilarityChange: (s: VectorialSimilarity) => void;
   p: number;
   onPChange: (p: number) => void;
   isCompareMode: boolean;
@@ -19,6 +21,8 @@ interface ModelControlsProps {
 export function ModelControls({
   model,
   onModelChange,
+  similarity,
+  onSimilarityChange,
   p,
   onPChange,
   isCompareMode,
@@ -36,6 +40,7 @@ export function ModelControls({
         <div className="flex items-center gap-3">
           <GlassToggleGroup
             value={isCompareMode ? "compare" : model}
+            layoutId="model-toggle"
             onChange={(v: string) => {
               if (v === "compare") {
                 onCompareModeChange(true);
@@ -60,6 +65,37 @@ export function ModelControls({
       </div>
 
       <AnimatePresence initial={false}>
+        {(model === "vectorial" && !isCompareMode) && (
+          <motion.div
+            key="similarity-control"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.25 }}
+            className="overflow-hidden"
+          >
+            <div className="flex items-center gap-4 pt-2">
+              <div className="flex flex-col gap-1.5 flex-1">
+                <div className="flex items-center justify-between mb-1">
+                  <Mono>similarity measure</Mono>
+                </div>
+                <GlassToggleGroup
+                  value={similarity}
+                  layoutId="similarity-toggle"
+                  onChange={(v) => onSimilarityChange(v as VectorialSimilarity)}
+                  options={[
+                    { value: "cosine", label: "Cosine" },
+                    { value: "scalar", label: "Scalar Product" },
+                    { value: "euclidean", label: "Euclidean" },
+                    { value: "jaccard", label: "Jaccard" },
+                    { value: "dice", label: "Dice" },
+                  ]}
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {(model === "boolean" || isCompareMode) && (
           <motion.div
             key="p-control"

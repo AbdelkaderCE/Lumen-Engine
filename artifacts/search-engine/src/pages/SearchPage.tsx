@@ -17,6 +17,8 @@ import {
 import { SearchBar } from "@/components/SearchBar";
 import { ModelControls } from "@/components/ModelControls";
 import { ResultCard } from "@/components/ResultCard";
+import { VectorSpaceViz } from "@/components/VectorSpaceViz";
+import { CalculationInsights } from "@/components/CalculationInsights";
 import { StatusBar } from "@/components/StatusBar";
 import { ThemeMenu } from "@/components/ThemeMenu";
 import { cn } from "@/lib/utils";
@@ -25,6 +27,7 @@ import {
   type IndexStatus,
   type SearchModel,
   type SearchResponse,
+  type VectorialSimilarity,
   getStatus,
   reindex,
   runSearch,
@@ -56,6 +59,7 @@ export default function SearchPage() {
 
   // Search controls ----------------------------------------------------------
   const [model, setModel] = useState<SearchModel>("vectorial");
+  const [similarity, setSimilarity] = useState<VectorialSimilarity>("cosine");
   const [isCompareMode, setIsCompareMode] = useState(false);
   const [usePrefixExpansion, setUsePrefixExpansion] = useState(true);
   const [p, setP] = useState(2.0);
@@ -74,13 +78,13 @@ export default function SearchPage() {
     try {
       if (isCompareMode) {
         const [vectorial, boolean] = await Promise.all([
-          runSearch({ query, model: "vectorial", p, topK: 20, usePrefixExpansion }),
+          runSearch({ query, model: "vectorial", similarity, p, topK: 20, usePrefixExpansion }),
           runSearch({ query, model: "boolean", p, topK: 20, usePrefixExpansion }),
         ]);
         setCompareResponses({ vectorial, boolean });
         setResponse(null);
       } else {
-        const r = await runSearch({ query, model, p, topK: 20, usePrefixExpansion });
+        const r = await runSearch({ query, model, similarity, p, topK: 20, usePrefixExpansion });
         setResponse(r);
         setCompareResponses(null);
       }
@@ -98,14 +102,36 @@ export default function SearchPage() {
     if (lastQuery) {
       handleSearch(lastQuery);
     }
-  }, [model, p, usePrefixExpansion, isCompareMode]);
+  }, [model, similarity, p, usePrefixExpansion, isCompareMode]);
+
+  const vizComponent = useMemo(() => {
+    if (!response?.viz_data) return null;
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.1 }}
+        className="mb-4"
+      >
+        <VectorSpaceViz data={response.viz_data} />
+      </motion.div>
+    );
+  }, [response?.viz_data]);
 
   const headerCaption = useMemo(() => {
     if (isCompareMode) return "Comparing Vectorial and Extended Boolean models side-by-side.";
-    if (model === "vectorial")
-      return "TF-IDF weighting combined with cosine similarity over the document vector space.";
+    if (model === "vectorial") {
+      switch (similarity) {
+        case "cosine": return "TF-IDF weighting combined with cosine similarity over the document vector space.";
+        case "scalar": return "TF-IDF weighting using raw scalar product (dot product) between vectors.";
+        case "euclidean": return "Ranking based on the inverse Euclidean distance between TF-IDF vectors.";
+        case "jaccard": return "Using the Tanimoto / Fuzzy Jaccard coefficient for weighted vector similarity.";
+        case "dice": return "Using the Fuzzy Dice coefficient for weighted vector similarity.";
+        default: return "TF-IDF weighting combined with vectorial ranking.";
+      }
+    }
     return "Extended Boolean retrieval using p-norm aggregation of weighted term memberships.";
-  }, [model, isCompareMode]);
+  }, [model, similarity, isCompareMode]);
 
   return (
     <div className="relative z-10 min-h-screen w-full px-4 py-10 md:py-16">
@@ -190,6 +216,8 @@ export default function SearchPage() {
             <ModelControls
               model={model}
               onModelChange={setModel}
+              similarity={similarity}
+              onSimilarityChange={setSimilarity}
               p={p}
               onPChange={setP}
               isCompareMode={isCompareMode}
@@ -290,7 +318,7 @@ export default function SearchPage() {
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="bg-accent/5 border-accent/20">
                         {response.model === "vectorial"
-                          ? "Vectorial · cosine"
+                          ? `Vectorial · ${response.similarity}`
                           : `Boolean · p=${response.p?.toFixed(1)}`}
                       </Badge>
                       <Mono>“{response.query}”</Mono>
@@ -315,7 +343,11 @@ export default function SearchPage() {
                       ))}
                     </div>
                   )}
+                  
+                  <CalculationInsights response={response} />
                 </div>
+
+                {vizComponent}
 
                 {response.results.length === 0 ? (
                   <EmptyResults />

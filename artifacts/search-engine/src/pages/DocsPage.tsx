@@ -75,10 +75,22 @@ const SECTIONS = [
         <div className="flex flex-col gap-4">
           <Badge className="w-fit">Vectorial Model</Badge>
           <Snippet>
-            Uses TF-IDF weighting and Cosine Similarity. It treats documents and queries as vectors in a multi-dimensional space, where each dimension corresponds to a term.
+            Treats documents and queries as vectors in a multi-dimensional space using TF-IDF weighting. Supports multiple similarity measures to rank relevance:
           </Snippet>
-          <div className="rounded-lg bg-muted/50 p-4 font-mono text-[10px] text-foreground/80 leading-relaxed">
-            sim(d, q) = (V(d) · V(q)) / (|V(d)| |V(q)|)
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              { name: "Cosine", formula: "(A·B) / (||A|| ||B||)", desc: "Normalized angle between vectors." },
+              { name: "Scalar Product", formula: "A·B", desc: "Raw dot product of weights." },
+              { name: "Euclidean", formula: "1 / (1 + ||A-B||)", desc: "Inverse of L2 distance." },
+              { name: "Jaccard", formula: "sum(min) / sum(max)", desc: "Fuzzy intersection over union." },
+              { name: "Dice", formula: "2*sum(min) / (sum+sum)", desc: "Harmonic fuzzy overlap." },
+            ].map((sim) => (
+              <div key={sim.name} className="flex flex-col gap-1.5 p-3 rounded-lg bg-muted/20 border border-border/50">
+                <Mono className="text-accent text-xs font-bold">{sim.name}</Mono>
+                <div className="font-mono text-[9px] text-muted-foreground">{sim.formula}</div>
+                <Snippet className="text-[10px] leading-tight opacity-70">{sim.desc}</Snippet>
+              </div>
+            ))}
           </div>
         </div>
         <div className="glass-divider" />

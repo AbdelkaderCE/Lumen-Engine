@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 import numpy as np
 
@@ -38,12 +38,14 @@ class SearchResult:
     filename: str
     snippet: str
     score: float
+    debug: Optional[dict] = None
 
     def to_dict(self) -> dict:
         return {
             "filename": self.filename,
             "snippet": self.snippet,
             "score": round(float(self.score), 6),
+            "debug": self.debug
         }
 
 
@@ -75,6 +77,25 @@ def _query_tfidf_vector(index: Index, weighted_terms: List[Tuple[str, float]]) -
     return q
 
 
+def _topk_results(index: Index, similarities: np.ndarray, top_k: int) -> List[SearchResult]:
+    """Sort documents by similarity and return top-k."""
+    # Find indices of top scores
+    indices = np.argsort(-similarities)[:top_k]
+    
+    results = []
+    for idx in indices:
+        if similarities[idx] <= 0:
+            continue
+            
+        doc = index.documents[idx]
+        results.append(SearchResult(
+            filename=doc.filename,
+            snippet=doc.snippet,
+            score=float(similarities[idx])
+        ))
+    return results
+
+
 # ---------------------------------------------------------------------------
 # 1) Vectorial Model  -  TF-IDF + Cosine Similarity
 # ---------------------------------------------------------------------------
@@ -82,21 +103,20 @@ def _query_tfidf_vector(index: Index, weighted_terms: List[Tuple[str, float]]) -
 class VectorialOutcome:
     results: List[SearchResult] = field(default_factory=list)
     expansions: Dict[str, List[str]] = field(default_factory=dict)
+    viz_data: Optional[dict] = None
+    debug: Optional[dict] = None
 
 
 def vectorial_search(
-    index: Index, query: str, top_k: int = 20, use_prefix_expansion: bool = True
+    index: Index, 
+    query: str, 
+    similarity: str = "cosine",
+    top_k: int = 20, 
+    use_prefix_expansion: bool = True
 ) -> VectorialOutcome:
     """
-    Cosine similarity ranking with prefix expansion.
-
-    Formula:
-        sim(q, d) = (q · d) / ( ||q||_2 * ||d||_2 )
-
-    where q and d are TF-IDF weighted vectors. The query vector q is
-    built from the *expanded* set of vocabulary terms, so a query token
-    like "cos" contributes mass to every vocabulary term beginning with
-    "cos" (such as the stem "cosin" produced from "cosine").
+    Ranking with prefix expansion using various similarity measures.
+    Includes 3D visualization data based on the top 3 terms.
     """
     if not index.documents:
         return VectorialOutcome()
@@ -105,46 +125,200 @@ def vectorial_search(
     if not raw_tokens:
         return VectorialOutcome()
 
-    # Expand each raw token; keep a per-token map so we can return it for
-    # transparency (the UI shows what was actually searched).
+    # Expand each raw token
     per_token_expansions = expand_query(index, raw_tokens, use_prefix_expansion=use_prefix_expansion)
-    expansion_map: Dict[str, List[str]] = {
-        raw: exp for raw, exp in zip(raw_tokens, per_token_expansions) if exp
-    }
-
-    import logging
-    logger = logging.getLogger("search-engine")
-    logger.info("Search Logic: use_prefix_expansion=%s", use_prefix_expansion)
-    logger.info("Raw Tokens: %s", raw_tokens)
-    logger.info("Expansion Map: %s", expansion_map)
+    
+    # We only show a term in the "expanded" badge if it was actually expanded 
+    # to something different than the raw user input (case-insensitive).
+    expansion_map: Dict[str, List[str]] = {}
+    for raw, exp in zip(raw_tokens, per_token_expansions):
+        if not exp: continue
+        # Logic: if we have more than one expansion, OR the single expansion is not the raw token
+        if len(exp) > 1 or (len(exp) == 1 and exp[0].lower() != raw.lower()):
+            expansion_map[raw] = exp
 
     # Build weighted term list for the vector
     weighted_terms: List[Tuple[str, float]] = []
     for raw, expanded_list in zip(raw_tokens, per_token_expansions):
         if not expanded_list: continue
-        # The first term (if it's the stem) gets full weight.
-        # Following matches from prefix expansion get 0.5.
         raw_stem = _STEMMER.stem(raw.lower())
-        for i, term in enumerate(expanded_list):
+        for term in expanded_list:
+            # Exact stem match gets full weight, prefixes get half
             weight = 1.0 if term == raw_stem else 0.5
             weighted_terms.append((term, weight))
 
+    # CRITICAL: If no terms matched the vocabulary, return zero results
+    # instead of letting numpy sort zeros (which would return the first docs in the index).
     if not weighted_terms:
-        return VectorialOutcome(expansions=expansion_map)
+        return VectorialOutcome(
+            results=[], 
+            expansions=expansion_map,
+            viz_data=None
+        )
 
     q_vec = _query_tfidf_vector(index, weighted_terms)
-    q_norm = float(np.linalg.norm(q_vec))
-    if q_norm == 0.0:
-        return VectorialOutcome(expansions=expansion_map)
+    
+    # 1. Similarity calculation
+    if similarity == "cosine":
+        q_norm = float(np.linalg.norm(q_vec))
+        if q_norm == 0.0:
+            similarities = np.zeros(len(index.documents))
+        else:
+            numerators = q_vec @ index.tfidf
+            denominators = q_norm * index.doc_norms
+            similarities = np.where(denominators > 0, numerators / denominators, 0.0)
+    elif similarity == "scalar":
+        similarities = q_vec @ index.tfidf
+    elif similarity == "euclidean":
+        dist = np.linalg.norm(index.tfidf - q_vec[:, np.newaxis], axis=0)
+        similarities = 1.0 / (1.0 + dist)
+    elif similarity == "jaccard":
+        q_col = q_vec[:, np.newaxis]
+        intersection = np.minimum(q_col, index.tfidf).sum(axis=0)
+        union = np.maximum(q_col, index.tfidf).sum(axis=0)
+        similarities = np.where(union > 0, intersection / union, 0.0)
+    elif similarity == "dice":
+        q_col = q_vec[:, np.newaxis]
+        intersection = np.minimum(q_col, index.tfidf).sum(axis=0)
+        total_sum = q_vec.sum() + index.tfidf.sum(axis=0)
+        similarities = np.where(total_sum > 0, (2.0 * intersection) / total_sum, 0.0)
+    else:
+        q_norm = float(np.linalg.norm(q_vec))
+        similarities = np.zeros(len(index.documents))
+        if q_norm > 0:
+            numerators = q_vec @ index.tfidf
+            denominators = q_norm * index.doc_norms
+            similarities = np.where(denominators > 0, numerators / denominators, 0.0)
 
-    # Numerator  = q · d  for every doc d  -> single matrix-vector product.
-    numerators = q_vec @ index.tfidf                          # shape (N,)
-    denominators = q_norm * index.doc_norms                   # shape (N,)
-    similarities = np.where(denominators > 0, numerators / denominators, 0.0)
+    # Filter out documents with zero similarity
+    if np.all(similarities == 0):
+        return VectorialOutcome(results=[], expansions=expansion_map, viz_data=None)
 
+    results = []
+    indices = np.argsort(-similarities)[:top_k]
+    for idx in indices:
+        if similarities[idx] <= 0:
+            continue
+            
+        # Per-document debug: find which query terms contributed most
+        doc_tfidf = index.tfidf[:, idx]
+        contributions = {}
+        for term, weight in weighted_terms:
+            t_idx = index.term_to_idx.get(term)
+            if t_idx is not None:
+                contrib = float(q_vec[t_idx] * doc_tfidf[t_idx])
+                if contrib > 0:
+                    contributions[term] = round(contrib, 4)
+
+        doc = index.documents[idx]
+        results.append(SearchResult(
+            filename=doc.filename,
+            snippet=doc.snippet,
+            score=float(similarities[idx]),
+            debug={"contributions": contributions}
+        ))
+
+    # 2. 3D Visualization Data Generation
+    # We want axes that represent the "topic space" of the results.
+    # We'll pick the 3 terms that have the highest total TF-IDF weight across the top documents.
+    target_dims = []
+    
+    if results:
+        doc_filenames = {r.filename for r in results}
+        doc_indices = [i for i, d in enumerate(index.documents) if d.filename in doc_filenames]
+        
+        # Calculate aggregate weight for every term in these documents
+        if doc_indices:
+            sum_weights = index.tfidf[:, doc_indices].sum(axis=1)
+            # Only consider terms that are ALSO in the query or are very significant
+            # Actually, let's just take the top 3 globally significant terms for these results
+            sorted_dims = np.argsort(-sum_weights)
+            
+            # To ensure the query is visible, we try to include at least one query term if possible
+            query_dims = np.where(q_vec > 0)[0]
+            if len(query_dims) > 0:
+                # Top query term
+                top_q = int(query_dims[np.argsort(-q_vec[query_dims])[0]])
+                target_dims.append(top_q)
+            
+            for d in sorted_dims:
+                d_idx = int(d)
+                if d_idx not in target_dims:
+                    target_dims.append(d_idx)
+                if len(target_dims) >= 3: break
+
+    # Fallback: if we have fewer than 3 terms, fill the remaining axes
+    # with the most "important" terms in the whole collection (highest IDF)
+    if len(target_dims) < 3:
+        # Get indices of all terms sorted by IDF descending
+        significant_dims = np.argsort(-index.idf)
+        for d in significant_dims:
+            d_idx = int(d)
+            if d_idx not in target_dims:
+                target_dims.append(d_idx)
+            if len(target_dims) >= 3: break
+
+    viz_data = None
+    if len(target_dims) == 3:
+        axes_labels = [index.vocabulary[i] for i in target_dims]
+        q_point = [float(q_vec[i]) for i in target_dims]
+        
+        doc_points = []
+        # Find indices again for consistent mapping
+        doc_filenames_list = [r.filename for r in results]
+        res_doc_indices = []
+        for fname in doc_filenames_list:
+            for i, d in enumerate(index.documents):
+                if d.filename == fname:
+                    res_doc_indices.append(i)
+                    break
+        
+        # For CLARITY: only plot the top 5 results in the 3D space
+        # Too many arrows make the graph unreadable.
+        for idx in res_doc_indices[:5]:
+            doc = index.documents[idx]
+            pos = [float(index.tfidf[dim_idx, idx]) for dim_idx in target_dims]
+            doc_points.append({
+                "filename": doc.filename,
+                "pos": pos,
+                "score": float(similarities[idx])
+            })
+            
+        viz_data = {
+            "query_string": query,
+            "axes": axes_labels,
+            "query": q_point,
+            "documents": doc_points
+        }
+
+    # Calculation Debug Info
+    # Prepare detailed vectorization steps for the "Query Insight"
+    vectorization_steps = []
+    for term, weight in weighted_terms:
+        idx = index.term_to_idx.get(term)
+        if idx is not None:
+            idf = float(index.idf[idx])
+            tf = float(weight) # simplified for query
+            final = float(q_vec[idx])
+            vectorization_steps.append({
+                "term": term,
+                "tf": round(tf, 2),
+                "idf": round(idf, 2),
+                "final_weight": round(final, 4)
+            })
+
+    debug_info = {
+        "formula": f"{similarity} similarity",
+        "query_vectorization": vectorization_steps,
+        "query_vector_non_zero": {index.vocabulary[i]: float(q_vec[i]) for i in query_dims},
+    }
+
+    print(f"DEBUG MODELS: vectorial_search returning debug={'YES' if debug_info else 'NO'}")
     return VectorialOutcome(
-        results=_topk_results(index, similarities, top_k),
+        results=results,
         expansions=expansion_map,
+        viz_data=viz_data,
+        debug=debug_info
     )
 
 
@@ -294,94 +468,140 @@ def _p_norm_not(score: np.ndarray) -> np.ndarray:
 class BooleanOutcome:
     results: List[SearchResult] = field(default_factory=list)
     expansions: Dict[str, List[str]] = field(default_factory=dict)
+    viz_data: Optional[dict] = None
+    debug: Optional[dict] = None
 
 
 def extended_boolean_search(
     index: Index, query: str, p: float = 2.0, top_k: int = 20, use_prefix_expansion: bool = True
 ) -> BooleanOutcome:
     """
-    Evaluate an Extended Boolean (p-norm) query, with prefix expansion
-    applied to every operand.
-
-    The query may contain AND, OR, NOT and parentheses, e.g.:
-        (information AND retrieval) OR search
-        machine AND learning AND NOT supervised
-    A bare query like "information retrieval" is treated as
-        information OR retrieval
-    which is the conventional behavior when no explicit operator is given.
+    Fuzzy boolean ranking using the p-norm model.
+    Supports query operators AND, OR, NOT and nested parentheses.
     """
     if not index.documents:
         return BooleanOutcome()
-    if p <= 0:
-        p = 1.0  # defensive: p must be positive
 
     tokens = _tokenize_boolean_query(query)
     if not tokens:
         return BooleanOutcome()
 
-    expansions_log: Dict[str, List[str]] = {}
-
-    # If the query has no explicit operators, default to an OR over all terms.
-    if not any(t in _OPERATORS for t in tokens):
-        terms = [t for t in tokens if t not in ("(", ")")]
-        if not terms:
-            return BooleanOutcome()
-        scores = [_term_membership(index, t, expansions_log, use_prefix_expansion=use_prefix_expansion) for t in terms]
-        scores = [s for s in scores if s.size]
-        if not scores:
-            return BooleanOutcome(expansions=expansions_log)
-        agg = _p_norm_or(scores, p) if len(scores) > 1 else scores[0]
-        return BooleanOutcome(
-            results=_topk_results(index, agg, top_k),
-            expansions=expansions_log,
-        )
-
-    # --- Otherwise evaluate the boolean expression with p-norm operators ---
     rpn = _shunting_yard(tokens)
-    stack: List[Tuple[str, np.ndarray]] = []  # ("op"|"term", scores)
+    stack: List[np.ndarray] = []
+    expansion_map: Dict[str, List[str]] = {}
 
     for tok in rpn:
-        if tok == "NOT":
-            if not stack:
-                continue
-            _kind, vec = stack.pop()
-            stack.append(("term", _p_norm_not(vec)))
-        elif tok in ("AND", "OR"):
-            if len(stack) < 2:
-                continue
-            _right_kind, right = stack.pop()
-            _left_kind, left = stack.pop()
-            operands = [left, right]
-            if tok == "OR":
-                stack.append((tok, _p_norm_or(operands, p)))
-            else:
-                stack.append((tok, _p_norm_and(operands, p)))
+        if tok == "AND":
+            if len(stack) < 2: continue
+            b = stack.pop()
+            a = stack.pop()
+            stack.append(_p_norm_and([a, b], p))
+        elif tok == "OR":
+            if len(stack) < 2: continue
+            b = stack.pop()
+            a = stack.pop()
+            stack.append(_p_norm_or([a, b], p))
+        elif tok == "NOT":
+            if len(stack) < 1: continue
+            a = stack.pop()
+            stack.append(_p_norm_not(a))
         else:
-            stack.append(("term", _term_membership(index, tok, expansions_log, use_prefix_expansion=use_prefix_expansion)))
+            # Atomic term
+            stack.append(_term_membership(index, tok, expansion_map, use_prefix_expansion))
 
     if not stack:
-        return BooleanOutcome(expansions=expansions_log)
-    final = stack[-1][1]
-    return BooleanOutcome(
-        results=_topk_results(index, final, top_k),
-        expansions=expansions_log,
-    )
+        return BooleanOutcome(expansions=expansion_map)
 
+    final_scores = stack.pop()
+    
+    # Per-document debug for boolean
+    results = []
+    indices = np.argsort(-final_scores)[:top_k]
+    
+    # We need the individual term scores to show "Why this document matched"
+    # Re-evaluate atomic terms for the top results
+    term_tokens = [t for t in rpn if t not in _OPERATORS]
+    
+    for idx in indices:
+        if final_scores[idx] <= 0:
+            continue
+            
+        memberships = {}
+        for tok in term_tokens:
+            m_vec = _term_membership(index, tok, {}, use_prefix_expansion)
+            memberships[tok] = round(float(m_vec[idx]), 4)
 
-# ---------------------------------------------------------------------------
-# Shared top-K + filtering helper
-# ---------------------------------------------------------------------------
-def _topk_results(
-    index: Index, scores: np.ndarray, top_k: int
-) -> List[SearchResult]:
-    if scores.size == 0:
-        return []
-    order = np.argsort(-scores)
-    results: List[SearchResult] = []
-    for j in order[: max(top_k, 0)]:
-        s = float(scores[j])
-        if s <= 0.0:
-            break
-        doc = index.documents[j]
-        results.append(SearchResult(filename=doc.filename, snippet=doc.snippet, score=s))
-    return results
+        doc = index.documents[idx]
+        results.append(SearchResult(
+            filename=doc.filename,
+            snippet=doc.snippet,
+            score=float(final_scores[idx]),
+            debug={"memberships": memberships}
+        ))
+
+    debug_info = {
+        "rpn": rpn,
+        "p": p,
+        "formula": f"p-norm evaluation (p={p})",
+    }
+
+    # 2. 3D Visualization Data Generation for Boolean
+    # We'll use the same logic as vectorial for consistency
+    target_dims = []
+    if results:
+        doc_filenames = {r.filename for r in results}
+        doc_indices = [i for i, d in enumerate(index.documents) if d.filename in doc_filenames]
+        if doc_indices:
+            sum_weights = index.tfidf[:, doc_indices].sum(axis=1)
+            sorted_dims = np.argsort(-sum_weights)
+            # Use query terms (atomic terms in boolean) to define axes if possible
+            query_terms = [t for t in rpn if t not in _OPERATORS]
+            for t in query_terms:
+                t_idx = index.term_to_idx.get(t)
+                if t_idx is not None and t_idx not in target_dims:
+                    target_dims.append(t_idx)
+                if len(target_dims) >= 1: break
+            
+            for d in sorted_dims:
+                d_idx = int(d)
+                if d_idx not in target_dims:
+                    target_dims.append(d_idx)
+                if len(target_dims) >= 3: break
+
+    # Fallback: if we have fewer than 3 terms, fill the remaining axes
+    # with the most "important" terms in the whole collection (highest IDF)
+    if len(target_dims) < 3:
+        # Get indices of all terms sorted by IDF descending
+        significant_dims = np.argsort(-index.idf)
+        for d in significant_dims:
+            d_idx = int(d)
+            if d_idx not in target_dims:
+                target_dims.append(d_idx)
+            if len(target_dims) >= 3: break
+
+    viz_data = None
+    if len(target_dims) == 3:
+        axes_labels = [index.vocabulary[i] for i in target_dims]
+        # Query point for boolean is less well-defined, we'll use membership of 1.0 for relevant terms
+        q_point = [1.0 if index.vocabulary[i] in query_terms else 0.0 for i in target_dims]
+        
+        doc_points = []
+        # Limit to top 5 for consistency
+        for idx in indices[:5]:
+            if final_scores[idx] <= 0: continue
+            doc = index.documents[idx]
+            pos = [float(index.tfidf[dim_idx, idx]) for dim_idx in target_dims]
+            doc_points.append({
+                "filename": doc.filename,
+                "pos": pos,
+                "score": float(final_scores[idx])
+            })
+        
+        viz_data = {
+            "query_string": query,
+            "axes": axes_labels,
+            "query": q_point,
+            "documents": doc_points
+        }
+
+    return BooleanOutcome(results=results, expansions=expansion_map, viz_data=viz_data, debug=debug_info)

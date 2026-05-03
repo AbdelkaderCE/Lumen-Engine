@@ -80,6 +80,10 @@ class SearchRequest(BaseModel):
         description="Ranking model to use: 'vectorial' (TF-IDF + cosine) "
         "or 'boolean' (Extended Boolean p-norm).",
     )
+    similarity: Optional[Literal["cosine", "scalar", "euclidean", "jaccard", "dice"]] = Field(
+        "cosine",
+        description="Similarity measure for vectorial model: 'cosine', 'scalar', 'euclidean', 'jaccard', or 'dice'.",
+    )
     p: Optional[float] = Field(
         2.0,
         ge=1.0,
@@ -95,10 +99,12 @@ class SearchResponseItem(BaseModel):
     filename: str
     snippet: str
     score: float
+    debug: Optional[Dict] = None
 
 
 class SearchResponse(BaseModel):
     model: str
+    similarity: Optional[str] = None
     p: Optional[float]
     query: str
     total_documents: int
@@ -106,6 +112,8 @@ class SearchResponse(BaseModel):
     # Per-token prefix expansion map. Useful for the UI / project defense:
     # shows exactly which vocabulary terms each user token was expanded to.
     expansions: Dict[str, List[str]] = Field(default_factory=dict)
+    viz_data: Optional[Dict] = None
+    debug: Optional[Dict] = None
 
 
 class StatusResponse(BaseModel):
@@ -138,10 +146,16 @@ def search(req: SearchRequest) -> SearchResponse:
     if not req.query.strip():
         raise HTTPException(status_code=400, detail="Query must not be empty.")
 
-    logger.info("Search: model=%s, use_prefix_expansion=%s, query='%s'", req.model, req.use_prefix_expansion, req.query)
+    logger.info("Search: model=%s, similarity=%s, use_prefix_expansion=%s, query='%s'", req.model, req.similarity, req.use_prefix_expansion, req.query)
 
     if req.model == "vectorial":
-        outcome = vectorial_search(_INDEX, req.query, top_k=req.top_k, use_prefix_expansion=req.use_prefix_expansion)
+        outcome = vectorial_search(
+            _INDEX, 
+            req.query, 
+            similarity=req.similarity or "cosine",
+            top_k=req.top_k, 
+            use_prefix_expansion=req.use_prefix_expansion
+        )
     elif req.model == "boolean":
         outcome = extended_boolean_search(
             _INDEX, req.query, p=req.p or 2.0, top_k=req.top_k, use_prefix_expansion=req.use_prefix_expansion
@@ -149,11 +163,15 @@ def search(req: SearchRequest) -> SearchResponse:
     else:
         raise HTTPException(status_code=400, detail=f"Unknown model: {req.model}")
 
-    return SearchResponse(
+    res = SearchResponse(
         model=req.model,
+        similarity=req.similarity if req.model == "vectorial" else None,
         p=req.p if req.model == "boolean" else None,
         query=req.query,
         total_documents=len(_INDEX.documents),
         results=[SearchResponseItem(**r.to_dict()) for r in outcome.results],
         expansions=outcome.expansions,
+        viz_data=outcome.viz_data if hasattr(outcome, "viz_data") else None,
+        debug=outcome.debug
     )
+    return res

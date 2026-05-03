@@ -16,6 +16,7 @@ interface GlassToggleGroupProps<T extends string> {
   onChange: (value: T) => void;
   options: GlassToggleOption<T>[];
   className?: string;
+  layoutId?: string;
 }
 
 export function GlassToggleGroup<T extends string>({
@@ -23,6 +24,7 @@ export function GlassToggleGroup<T extends string>({
   onChange,
   options,
   className,
+  layoutId = "glass-toggle-indicator",
 }: GlassToggleGroupProps<T>) {
   return (
     <div
@@ -50,7 +52,7 @@ export function GlassToggleGroup<T extends string>({
           >
             {active && (
               <motion.span
-                layoutId="glass-toggle-indicator"
+                layoutId={layoutId}
                 className="absolute inset-0 rounded-md bg-accent border border-accent"
                 transition={{ type: "spring", stiffness: 400, damping: 30 }}
               />
