@@ -105,7 +105,7 @@ export default function SearchPage() {
   }, [model, similarity, p, usePrefixExpansion, isCompareMode]);
 
   const vizComponent = useMemo(() => {
-    if (!response?.viz_data) return null;
+    if (!response?.viz_data || response.model === "boolean") return null;
     return (
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
@@ -116,7 +116,7 @@ export default function SearchPage() {
         <VectorSpaceViz data={response.viz_data} />
       </motion.div>
     );
-  }, [response?.viz_data]);
+  }, [response?.viz_data, response?.model]);
 
   const headerCaption = useMemo(() => {
     if (isCompareMode) return "Comparing Vectorial and Extended Boolean models side-by-side.";
@@ -133,8 +133,23 @@ export default function SearchPage() {
     return "Extended Boolean retrieval using p-norm aggregation of weighted term memberships.";
   }, [model, similarity, isCompareMode]);
 
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
   return (
     <div className="relative z-10 min-h-screen w-full px-4 py-10 md:py-16">
+      {/* Search Focus Backdrop */}
+      <AnimatePresence>
+        {isSearchFocused && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ type: "spring", stiffness: 100, damping: 20 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 pointer-events-none"
+          />
+        )}
+      </AnimatePresence>
+
       <motion.div
         layout
         className={cn(
@@ -211,40 +226,50 @@ export default function SearchPage() {
         </GlassCard>
 
         {/* Controls + search */}
-        <GlassCard variant="strong" layout>
-          <GlassCardContent className="flex flex-col gap-6 p-6">
-            <ModelControls
-              model={model}
-              onModelChange={setModel}
-              similarity={similarity}
-              onSimilarityChange={setSimilarity}
-              p={p}
-              onPChange={setP}
-              isCompareMode={isCompareMode}
-              onCompareModeChange={setIsCompareMode}
-              usePrefixExpansion={usePrefixExpansion}
-              onUsePrefixExpansionChange={setUsePrefixExpansion}
-            />
-            <div className="glass-divider" />
-            <SearchBar
-              onSearch={handleSearch}
-              loading={loading}
-              placeholder={
-                model === "boolean" || isCompareMode
-                  ? "e.g. (information AND retrieval) OR vector"
-                  : "e.g. cosine similarity vector model"
-              }
-            />
-            {(model === "boolean" || isCompareMode) && (
-              <Mono>
-                Operators: <span className="text-foreground">AND</span> ·{" "}
-                <span className="text-foreground">OR</span> ·{" "}
-                <span className="text-foreground">NOT</span> · parentheses
-                supported. Bare queries default to OR.
-              </Mono>
-            )}
-          </GlassCardContent>
-        </GlassCard>
+        <div className={cn(
+          "relative transition-all duration-500",
+          isSearchFocused ? "z-[40]" : "z-20"
+        )}>
+          <GlassCard variant="strong" layout className={cn(
+            "transition-all duration-500",
+            isSearchFocused ? "ring-2 ring-accent/30 shadow-[0_0_50px_rgba(var(--accent-rgb),0.2)] bg-black/40 scale-[1.01]" : ""
+          )}>
+            <GlassCardContent className="flex flex-col gap-6 p-6">
+              <ModelControls
+                model={model}
+                onModelChange={setModel}
+                similarity={similarity}
+                onSimilarityChange={setSimilarity}
+                p={p}
+                onPChange={setP}
+                isCompareMode={isCompareMode}
+                onCompareModeChange={setIsCompareMode}
+                usePrefixExpansion={usePrefixExpansion}
+                onUsePrefixExpansionChange={setUsePrefixExpansion}
+              />
+              <div className="glass-divider" />
+              <SearchBar 
+                onSearch={handleSearch} 
+                loading={loading} 
+                initialValue={lastQuery}
+                onFocusChange={setIsSearchFocused}
+                placeholder={
+                  model === "boolean" || isCompareMode
+                    ? "e.g. (information AND retrieval) OR vector"
+                    : "Search the corpus…"
+                }
+              />
+              {(model === "boolean" || isCompareMode) && (
+                <Mono className="text-[10px] opacity-60">
+                  Operators: <span className="text-foreground font-bold">AND</span> ·{" "}
+                  <span className="text-foreground font-bold">OR</span> ·{" "}
+                  <span className="text-foreground font-bold">NOT</span> · parentheses
+                  supported. Bare queries default to OR.
+                </Mono>
+              )}
+            </GlassCardContent>
+          </GlassCard>
+        </div>
 
         {/* Results */}
         <div className="flex flex-col gap-3">

@@ -234,18 +234,22 @@ def vectorial_search(
             # Actually, let's just take the top 3 globally significant terms for these results
             sorted_dims = np.argsort(-sum_weights)
             
-            # To ensure the query is visible, we try to include at least one query term if possible
+            # CRITICAL: Prioritize ALL query terms for the 3 axes
+            # This ensures the yellow query line is a multidimensional diagonal
             query_dims = np.where(q_vec > 0)[0]
             if len(query_dims) > 0:
-                # Top query term
-                top_q = int(query_dims[np.argsort(-q_vec[query_dims])[0]])
-                target_dims.append(top_q)
+                # Sort query terms by their weight in the query
+                sorted_q_dims = query_dims[np.argsort(-q_vec[query_dims])]
+                for qd in sorted_q_dims:
+                    target_dims.append(int(qd))
+                    if len(target_dims) >= 3: break
             
+            # Fill remaining axes (if any) with the most frequent terms in results
             for d in sorted_dims:
+                if len(target_dims) >= 3: break
                 d_idx = int(d)
                 if d_idx not in target_dims:
                     target_dims.append(d_idx)
-                if len(target_dims) >= 3: break
 
     # Fallback: if we have fewer than 3 terms, fill the remaining axes
     # with the most "important" terms in the whole collection (highest IDF)
@@ -539,10 +543,30 @@ def extended_boolean_search(
             debug={"memberships": memberships}
         ))
 
+    top_memberships = {}
+    top_score = 0
+    if results:
+        top_idx = 0
+        # Find the actual index in the document collection for the top result
+        for i, d in enumerate(index.documents):
+            if d.filename == results[0].filename:
+                top_idx = i
+                break
+        top_score = float(final_scores[top_idx])
+        
+        # Get unique atomic terms from RPN (excluding operators)
+        atomic_terms = [t for t in rpn if t not in _OPERATORS]
+        for t in atomic_terms:
+            # Use the same expansion logic as the search itself
+            m_vec = _term_membership(index, t, {}, use_prefix_expansion)
+            top_memberships[t] = float(m_vec[top_idx])
+
     debug_info = {
         "rpn": rpn,
         "p": p,
         "formula": f"p-norm evaluation (p={p})",
+        "top_memberships": top_memberships,
+        "top_score": top_score
     }
 
     # 2. 3D Visualization Data Generation for Boolean

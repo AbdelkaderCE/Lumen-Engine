@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FileText, ChevronDown, Target, Activity } from "lucide-react";
 import {
@@ -22,6 +22,15 @@ interface ResultCardProps {
 
 export function ResultCard({ rank, item }: ResultCardProps) {
   const [showDetails, setShowDetails] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    if (!cardRef.current) return;
+    const { clientX, clientY } = e;
+    const { left, top } = cardRef.current.getBoundingClientRect();
+    cardRef.current.style.setProperty("--mouse-x", `${clientX - left}px`);
+    cardRef.current.style.setProperty("--mouse-y", `${clientY - top}px`);
+  }
   
   const lastSlash = item.filename.lastIndexOf("/");
   const folder = lastSlash >= 0 ? item.filename.slice(0, lastSlash + 1) : "";
@@ -32,12 +41,29 @@ export function ResultCard({ rank, item }: ResultCardProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, delay: Math.min(rank * 0.04, 0.4) }}
+      initial={{ opacity: 0, y: 30, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ 
+        type: "spring",
+        stiffness: 120,
+        damping: 15,
+        mass: 1,
+        delay: Math.min(rank * 0.05, 0.5) 
+      }}
     >
-      <GlassCard className="hover:border-accent/50 transition-colors overflow-hidden">
-        <GlassCardContent className="p-5">
+      <div 
+        ref={cardRef}
+        onMouseMove={handleMouseMove}
+        className="group relative"
+      >
+        <GlassCard className="hover:border-accent/50 transition-colors overflow-hidden group-hover:shadow-[0_0_30px_rgba(var(--accent-rgb),0.1)]">
+          <div 
+            className="pointer-events-none absolute -inset-px opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"
+            style={{
+              background: `radial-gradient(600px circle at var(--mouse-x) var(--mouse-y), rgba(var(--accent-rgb), 0.15), transparent 40%)`
+            }}
+          />
+          <GlassCardContent className="p-5 relative z-20">
           <div className="flex items-start gap-4">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-lg glass-surface">
               <FileText className="size-5 text-accent" />
@@ -143,6 +169,7 @@ export function ResultCard({ rank, item }: ResultCardProps) {
           </div>
         </GlassCardContent>
       </GlassCard>
+      </div>
     </motion.div>
   );
 }

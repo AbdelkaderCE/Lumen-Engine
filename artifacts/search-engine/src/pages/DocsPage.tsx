@@ -12,6 +12,10 @@ import {
   Layers,
   Database,
   Cpu,
+  Eye,
+  BarChart3,
+  Box,
+  Sparkles,
 } from "lucide-react";
 
 import {
@@ -47,7 +51,7 @@ const SECTIONS = [
             </GlassCardHeader>
             <GlassCardContent className="p-4 pt-0">
               <Snippet className="text-xs">
-                Simply drop your files into the <Mono className="text-foreground">/data</Mono> directory. Supported formats: .txt, .pdf, .json.
+                Simply drop your files (.txt, .pdf, .json) into the <Mono className="text-foreground">/data</Mono> directory.
               </Snippet>
             </GlassCardContent>
           </GlassCard>
@@ -58,10 +62,42 @@ const SECTIONS = [
             </GlassCardHeader>
             <GlassCardContent className="p-4 pt-0">
               <Snippet className="text-xs">
-                Click the "Reindex" button to process new documents. The engine automatically tokenizes and weights all content.
+                Click "Reindex" to process content. The engine uses sub-linear TF scaling and smoothed IDF for robust weighting.
               </Snippet>
             </GlassCardContent>
           </GlassCard>
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "transparency",
+    title: "Transparency & Insights",
+    icon: Eye,
+    content: (
+      <div className="flex flex-col gap-6">
+        <Snippet>
+          Lumen Engine is built on the principle of "Open-Box IR." Every ranking decision is fully observable through real-time mathematical breakdowns.
+        </Snippet>
+        <div className="grid gap-4">
+          <div className="flex flex-col gap-3 p-4 rounded-xl glass-surface border border-accent/20">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="size-4 text-accent" />
+              <Mono className="text-xs font-bold uppercase">Calculation Insights</Mono>
+            </div>
+            <Snippet className="text-xs leading-relaxed">
+              Every search includes a dynamic breakdown of TF, IDF, and final weights. For Boolean queries, the system reveals the exact RPN (Reverse Polish Notation) steps used to evaluate the logic.
+            </Snippet>
+          </div>
+          <div className="flex flex-col gap-3 p-4 rounded-xl glass-surface border border-accent/20">
+            <div className="flex items-center gap-2">
+              <Box className="size-4 text-accent" />
+              <Mono className="text-xs font-bold uppercase">3D Spatial Projection</Mono>
+            </div>
+            <Snippet className="text-xs leading-relaxed">
+              The engine projects a shadow of the high-dimensional vector space into 3D. It focuses on the Top 5 results for clarity, using "Billboarding" to keep all text readable during rotation.
+            </Snippet>
+          </div>
         </div>
       </div>
     ),
@@ -129,6 +165,12 @@ const SECTIONS = [
               <Snippet className="text-xs">{item.desc}</Snippet>
             </div>
           ))}
+        </div>
+        <div className="mt-2 pt-4 border-t border-border/50">
+          <Snippet className="text-xs italic">
+            <Sparkles className="size-3 inline mr-2 text-accent" />
+            Automatic Prefix Expansion: All query terms are automatically expanded to match the closest terms in the index vocabulary.
+          </Snippet>
         </div>
       </div>
     ),
