@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "wouter";
-import { Sparkles, AlertTriangle, Inbox, Book } from "lucide-react";
+import { Sparkles, AlertTriangle, Inbox, Book, Target, Layers, Zap } from "lucide-react";
 
 import {
   GlassCard,
@@ -134,10 +134,37 @@ export default function SearchPage() {
   }, [model, similarity, isCompareMode]);
 
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [relevance, setRelevance] = useState<Record<string, boolean>>({});
+
+  const handleRelevanceChange = (id: string, relevant: boolean | null) => {
+    setRelevance(prev => {
+      const next = { ...prev };
+      if (relevant === null) delete next[id];
+      else next[id] = relevant;
+      return next;
+    });
+  };
+
+  const metrics = useMemo(() => {
+    const results = isCompareMode ? [] : response?.results || [];
+    if (results.length === 0) return null;
+
+    const rated = results.filter(r => relevance[r.filename] !== undefined);
+    const tp = rated.filter(r => relevance[r.filename] === true).length;
+    const fp = rated.filter(r => relevance[r.filename] === false).length;
+    
+    // Total relevant found so far (across all queries)
+    const totalRelevant = Object.values(relevance).filter(v => v === true).length;
+
+    const precision = rated.length > 0 ? tp / rated.length : 0;
+    const recall = totalRelevant > 0 ? tp / totalRelevant : 0;
+    const f1 = (precision + recall) > 0 ? (2 * precision * recall) / (precision + recall) : 0;
+
+    return { precision, recall, f1, tp, fp, rated: rated.length };
+  }, [response, relevance, isCompareMode]);
 
   return (
     <div className="relative z-10 min-h-screen w-full px-4 py-10 md:py-16">
-      {/* Search Focus Backdrop */}
       <AnimatePresence>
         {isSearchFocused && (
           <motion.div 
@@ -372,13 +399,21 @@ export default function SearchPage() {
                   <CalculationInsights response={response} />
                 </div>
 
+                <IREvalDashboard metrics={metrics} />
+
                 {vizComponent}
 
                 {response.results.length === 0 ? (
                   <EmptyResults />
                 ) : (
                   response.results.map((item, i) => (
-                    <ResultCard key={`${item.filename}-${i}`} rank={i + 1} item={item} />
+                    <ResultCard 
+                      key={`${item.filename}-${i}`} 
+                      rank={i + 1} 
+                      item={item} 
+                      isRelevant={relevance[item.filename]}
+                      onRelevanceChange={(rel) => handleRelevanceChange(item.filename, rel)}
+                    />
                   ))
                 )}
               </motion.div>
@@ -412,6 +447,51 @@ export default function SearchPage() {
         </footer>
       </motion.div>
     </div>
+  );
+}
+
+function IREvalDashboard({ metrics }: { metrics: any }) {
+  if (!metrics || metrics.rated === 0) return null;
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4"
+    >
+      <GlassCard className="bg-accent/5 border-accent/20">
+        <GlassCardContent className="p-4 flex items-center justify-between">
+          <div className="flex flex-col">
+            <Snippet className="text-[10px] uppercase font-bold text-muted-foreground">Precision</Snippet>
+            <div className="text-2xl font-mono text-accent font-bold">
+              {(metrics.precision * 100).toFixed(1)}%
+            </div>
+          </div>
+          <Target className="size-8 text-accent/20" />
+        </GlassCardContent>
+      </GlassCard>
+      <GlassCard className="bg-accent/5 border-accent/20">
+        <GlassCardContent className="p-4 flex items-center justify-between">
+          <div className="flex flex-col">
+            <Snippet className="text-[10px] uppercase font-bold text-muted-foreground">Recall</Snippet>
+            <div className="text-2xl font-mono text-accent font-bold">
+              {(metrics.recall * 100).toFixed(1)}%
+            </div>
+          </div>
+          <Layers className="size-8 text-accent/20" />
+        </GlassCardContent>
+      </GlassCard>
+      <GlassCard className="bg-accent/5 border-accent/20">
+        <GlassCardContent className="p-4 flex items-center justify-between">
+          <div className="flex flex-col">
+            <Snippet className="text-[10px] uppercase font-bold text-muted-foreground">F1-Score</Snippet>
+            <div className="text-2xl font-mono text-accent font-bold">
+              {metrics.f1.toFixed(3)}
+            </div>
+          </div>
+          <Zap className="size-8 text-accent/20" />
+        </GlassCardContent>
+      </GlassCard>
+    </motion.div>
   );
 }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Calculator, Binary, Sigma, Table, Layers, Activity } from "lucide-react";
+import { ChevronDown, Calculator, Binary, Sigma, Table, Layers, Activity, Target } from "lucide-react";
 
 function AnimatedCounter({ value, decimals = 4 }: { value: number, decimals?: number }) {
   const [displayValue, setDisplayValue] = useState(0);
@@ -144,6 +144,34 @@ function BooleanRPN({ debug, topScore }: { debug: any, topScore: number }) {
                 <AnimatedCounter value={topScore} decimals={4} />
              </div>
              <Snippet className="text-[10px] opacity-70 mt-1">Final document membership degree</Snippet>
+          </div>
+        </div>
+
+        {/* IR Evaluation Logic (Conceptual) */}
+        <div className="mt-8 pt-6 border-t border-border/50 space-y-4">
+          <div className="flex items-center gap-2">
+            <Target className="size-4 text-accent" />
+            <SectionTitle className="text-sm">IR Evaluation Metrics</SectionTitle>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <Mono className="text-[10px] text-muted-foreground uppercase">Precision Formula</Mono>
+              <div className="p-2 rounded bg-black/40 font-mono text-[10px]">
+                P = Relevant_Retrieved / Total_Retrieved
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Mono className="text-[10px] text-muted-foreground uppercase">Recall Formula</Mono>
+              <div className="p-2 rounded bg-black/40 font-mono text-[10px]">
+                R = Relevant_Retrieved / Total_Relevant
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Mono className="text-[10px] text-muted-foreground uppercase">F1 Harmony</Mono>
+              <div className="p-2 rounded bg-black/40 font-mono text-[10px]">
+                F1 = 2 * (P*R) / (P+R)
+              </div>
+            </div>
           </div>
         </div>
       </div>

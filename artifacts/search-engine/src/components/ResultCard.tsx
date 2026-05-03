@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, ChevronDown, Target, Activity } from "lucide-react";
+import { FileText, ChevronDown, Target, Activity, ThumbsUp, ThumbsDown } from "lucide-react";
 import {
   GlassCard,
   GlassCardContent,
@@ -18,9 +18,11 @@ import type { SearchResultItem } from "@/lib/api";
 interface ResultCardProps {
   rank: number;
   item: SearchResultItem;
+  isRelevant?: boolean;
+  onRelevanceChange?: (relevant: boolean | null) => void;
 }
 
-export function ResultCard({ rank, item }: ResultCardProps) {
+export function ResultCard({ rank, item, isRelevant, onRelevanceChange }: ResultCardProps) {
   const [showDetails, setShowDetails] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -85,6 +87,34 @@ export function ResultCard({ rank, item }: ResultCardProps) {
                   <Badge>{ext}</Badge>
                 </div>
                 <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5 border border-white/5">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRelevanceChange?.(isRelevant === true ? null : true);
+                      }}
+                      className={cn(
+                        "p-1.5 rounded-md transition-all",
+                        isRelevant === true ? "text-accent bg-accent/20" : "text-muted-foreground hover:bg-white/10"
+                      )}
+                      title="Mark as relevant"
+                    >
+                      <ThumbsUp className="size-3.5" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRelevanceChange?.(isRelevant === false ? null : false);
+                      }}
+                      className={cn(
+                        "p-1.5 rounded-md transition-all",
+                        isRelevant === false ? "text-destructive bg-destructive/20" : "text-muted-foreground hover:bg-white/10"
+                      )}
+                      title="Mark as irrelevant"
+                    >
+                      <ThumbsDown className="size-3.5" />
+                    </button>
+                  </div>
                   <ScoreLabel value={item.score} />
                   {hasDebug && (
                     <button 

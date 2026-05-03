@@ -16,6 +16,8 @@ import {
   BarChart3,
   Box,
   Sparkles,
+  Target,
+  Activity,
 } from "lucide-react";
 
 import {
@@ -171,6 +173,66 @@ const SECTIONS = [
             <Sparkles className="size-3 inline mr-2 text-accent" />
             Automatic Prefix Expansion: All query terms are automatically expanded to match the closest terms in the index vocabulary.
           </Snippet>
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "evaluation",
+    title: "IR Evaluation",
+    icon: Activity,
+    content: (
+      <div className="flex flex-col gap-6">
+        <Snippet>
+          Lumen Engine allows you to evaluate search quality using standard Information Retrieval metrics based on user relevance feedback.
+        </Snippet>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex flex-col gap-2 p-4 rounded-xl glass-surface border border-white/5">
+            <div className="flex items-center gap-2 text-accent">
+              <Target className="size-4" />
+              <Mono className="font-bold">Precision</Mono>
+            </div>
+            <Snippet className="text-xs">
+              Proportion of retrieved documents that are relevant.
+            </Snippet>
+            <code className="bg-black/40 p-2 rounded text-[10px] text-accent font-mono mt-auto">
+              P = TP / (TP + FP)
+            </code>
+          </div>
+
+          <div className="flex flex-col gap-2 p-4 rounded-xl glass-surface border border-white/5">
+            <div className="flex items-center gap-2 text-accent">
+              <Layers className="size-4" />
+              <Mono className="font-bold">Recall</Mono>
+            </div>
+            <Snippet className="text-xs">
+              Proportion of all relevant documents that were retrieved.
+            </Snippet>
+            <code className="bg-black/40 p-2 rounded text-[10px] text-accent font-mono mt-auto">
+              R = TP / (TP + FN)
+            </code>
+          </div>
+
+          <div className="flex flex-col gap-2 p-4 rounded-xl glass-surface border border-white/5">
+            <div className="flex items-center gap-2 text-accent">
+              <Zap className="size-4" />
+              <Mono className="font-bold">F1-Score</Mono>
+            </div>
+            <Snippet className="text-xs">
+              The harmonic mean of Precision and Recall.
+            </Snippet>
+            <code className="bg-black/40 p-2 rounded text-[10px] text-accent font-mono mt-auto">
+              F1 = 2PR / (P + R)
+            </code>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-accent/5 border border-accent/10 space-y-2">
+          <Mono className="text-xs font-bold text-accent uppercase italic">How it works in Lumen:</Mono>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Since total relevance is unknown in an open corpus, we calculate <b>Precision@K</b> based on the results you mark as relevant. Recall is estimated based on the total number of items you flag as relevant across all pages.
+          </p>
         </div>
       </div>
     ),
