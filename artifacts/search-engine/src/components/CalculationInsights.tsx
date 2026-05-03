@@ -126,7 +126,7 @@ function BooleanRPN({ debug, topScore }: { debug: any, topScore: number }) {
                       <motion.div 
                         initial={{ width: 0 }}
                         animate={{ width: `${(val as number) * 100}%` }}
-                        transition={{ duration: 1, ease: "easeOut" }}
+                        transition={{ type: "spring", stiffness: 50, damping: 20 }}
                         className="h-full bg-accent" 
                       />
                     </div>
@@ -195,11 +195,11 @@ export function CalculationInsights({ response }: CalculationInsightsProps) {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            key="insight-content"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
+            key="insights-panel"
+            initial={{ height: 0, opacity: 0, scale: 0.98 }}
+            animate={{ height: "auto", opacity: 1, scale: 1 }}
+            exit={{ height: 0, opacity: 0, scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 100, damping: 18 }}
             className="overflow-hidden"
           >
             <GlassCardContent className="p-4 pt-0 border-t border-accent/10 flex flex-col gap-6">
