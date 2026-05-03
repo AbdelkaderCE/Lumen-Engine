@@ -35,6 +35,8 @@ def _vocab_starting_with(index: Index, prefix: str) -> List[str]:
     return [t for t in index.vocabulary if t.startswith(prefix)]
 
 
+_OPERATORS = {"and", "or", "not"}
+
 def expand_term(index: Index, raw_token: str, use_prefix_expansion: bool = True) -> List[str]:
     """
     Expand a single raw user token into one or more vocabulary terms.
@@ -43,6 +45,7 @@ def expand_term(index: Index, raw_token: str, use_prefix_expansion: bool = True)
         1. If expansion is OFF, only allow exact stem hit.
         2. If expansion is ON, only expand if token length >= 3.
         3. Prefix matches are capped at 10.
+        4. NEVER expand boolean operators (AND, OR, NOT).
     """
     if not raw_token:
         return []
@@ -50,7 +53,11 @@ def expand_term(index: Index, raw_token: str, use_prefix_expansion: bool = True)
     pieces = tokenize(raw_token)
     if not pieces:
         return []
-    raw = pieces[0]
+    raw = pieces[0].lower()
+    
+    if raw in _OPERATORS:
+        return []
+        
     stem = _STEMMER.stem(raw)
 
     # 1. Base exact match
