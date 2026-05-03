@@ -153,14 +153,32 @@ export default function SearchPage() {
     const tp = rated.filter(r => relevance[r.filename] === true).length;
     const fp = rated.filter(r => relevance[r.filename] === false).length;
     
-    // Total relevant found so far (across all queries)
     const totalRelevant = Object.values(relevance).filter(v => v === true).length;
 
     const precision = rated.length > 0 ? tp / rated.length : 0;
     const recall = totalRelevant > 0 ? tp / totalRelevant : 0;
     const f1 = (precision + recall) > 0 ? (2 * precision * recall) / (precision + recall) : 0;
 
-    return { precision, recall, f1, tp, fp, rated: rated.length };
+    // Calculate PR Curve points (at each rank k)
+    const prPoints: { precision: number, recall: number, rank: number, isRated: boolean }[] = [];
+    let currentTP = 0;
+    
+    results.forEach((r, i) => {
+      const rank = i + 1;
+      const isRelevant = relevance[r.filename] === true;
+      const isRated = relevance[r.filename] !== undefined;
+      
+      if (isRelevant) currentTP++;
+      
+      // We only count precision/recall for "Rated" docs in a true evaluation,
+      // but for the curve visualization, we show the trend at each rank.
+      const pAtK = currentTP / rank;
+      const rAtK = totalRelevant > 0 ? currentTP / totalRelevant : 0;
+      
+      prPoints.push({ precision: pAtK, recall: rAtK, rank, isRated });
+    });
+
+    return { precision, recall, f1, tp, fp, rated: rated.length, prPoints };
   }, [response, relevance, isCompareMode]);
 
   return (
@@ -212,25 +230,43 @@ export default function SearchPage() {
           <AnimatePresence mode="wait">
             <motion.div
               key={isCompareMode ? "compare" : model}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-              className="flex flex-col items-center gap-3"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="flex flex-col items-center"
             >
-              <DisplayTitle>
-                {isCompareMode ? (
-                  <>
-                    Model <span className="text-accent">Comparison</span> Mode
-                  </>
-                ) : (
-                  <>
-                    Search your corpus with{" "}
-                    <span className="text-accent">two ranking models</span>
-                  </>
-                )}
-              </DisplayTitle>
-              <Snippet className="max-w-2xl">{headerCaption}</Snippet>
+              <div className="relative group -mb-10 md:-mb-14 z-10">
+                <img 
+                  src="/logo.svg" 
+                  alt="Lumen Engine" 
+                  className="h-44 md:h-64 w-auto max-w-[800px] drop-shadow-[0_0_40px_rgba(var(--accent-rgb),0.4)] dark:brightness-0 dark:invert transition-all duration-700 cursor-pointer object-contain"
+                  onClick={() => window.location.href = '/'}
+                />
+                <div className="absolute inset-0 bg-accent/5 blur-[100px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+              </div>
+              
+              <div className="flex flex-col items-center gap-3 relative z-20">
+                <DisplayTitle>
+                  {isCompareMode ? (
+                    <>
+                      Model <span className="text-accent">Comparison</span> Mode
+                    </>
+                  ) : (
+                    <>
+                      Search your corpus with{" "}
+                      <span className="text-accent">two ranking models</span>
+                    </>
+                  )}
+                </DisplayTitle>
+                
+                <Snippet className="max-w-md text-muted-foreground/80">
+                  {isCompareMode 
+                    ? "Advanced Information Retrieval • Model Comparison Suite"
+                    : "High-Fidelity Observability • Dual Ranking Research Engine"
+                  }
+                </Snippet>
+              </div>
             </motion.div>
           </AnimatePresence>
         </div>
@@ -258,8 +294,8 @@ export default function SearchPage() {
           isSearchFocused ? "z-[40]" : "z-20"
         )}>
           <GlassCard variant="strong" layout className={cn(
-            "transition-all duration-500",
-            isSearchFocused ? "ring-2 ring-accent/30 shadow-[0_0_50px_rgba(var(--accent-rgb),0.2)] bg-black/40 scale-[1.01]" : ""
+            "transition-all duration-500 will-change-transform",
+            isSearchFocused ? "ring-2 ring-accent/30 shadow-[0_0_50px_rgba(var(--accent-rgb),0.2)] bg-black/40 scale-[1.02] transform-gpu" : ""
           )}>
             <GlassCardContent className="flex flex-col gap-6 p-6">
               <ModelControls
@@ -450,6 +486,118 @@ export default function SearchPage() {
   );
 }
 
+function PRCurve({ points }: { points: any[] }) {
+  if (!points || points.length === 0) return null;
+
+  const width = 400;
+  const height = 200;
+  const paddingLeft = 50;
+  const paddingBottom = 40;
+  const paddingRight = 20;
+  const paddingTop = 20;
+
+  // Map points to SVG coordinates
+  const svgPoints = points.map(p => ({
+    x: paddingLeft + p.recall * (width - paddingLeft - paddingRight),
+    y: height - paddingBottom - p.precision * (height - paddingBottom - paddingTop),
+    isRated: p.isRated
+  }));
+
+  const pathD = svgPoints.length > 1 
+    ? `M ${svgPoints.map(p => `${p.x},${p.y}`).join(" L ")}`
+    : "";
+
+  return (
+    <GlassCard className="bg-accent/5 border-accent/20 col-span-1 sm:col-span-3">
+      <GlassCardContent className="p-6 flex flex-col gap-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-md bg-accent/10 border border-accent/20">
+              <Target className="size-3.5 text-accent" />
+            </div>
+            <Snippet className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">Precision-Recall Curve</Snippet>
+          </div>
+          <div className="flex gap-4">
+             <div className="flex items-center gap-1.5">
+               <div className="size-1.5 rounded-full bg-accent animate-pulse" />
+               <Snippet className="text-[10px]">Current Query</Snippet>
+             </div>
+          </div>
+        </div>
+        
+        <div className="relative w-full aspect-[2/1] bg-black/40 rounded-xl overflow-hidden border border-white/5 p-4 shadow-inner">
+          <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
+            {/* Grid Lines (Subtle) */}
+            {[0, 0.25, 0.5, 0.75, 1].map(v => (
+              <g key={v}>
+                <line 
+                  x1={paddingLeft} y1={height - paddingBottom - v * (height - paddingBottom - paddingTop)}
+                  x2={width - paddingRight} y2={height - paddingBottom - v * (height - paddingBottom - paddingTop)}
+                  stroke="currentColor" className="text-white/5" strokeWidth="1" strokeDasharray="4 4"
+                />
+                <line 
+                  x1={paddingLeft + v * (width - paddingLeft - paddingRight)} y1={height - paddingBottom}
+                  x2={paddingLeft + v * (width - paddingLeft - paddingRight)} y2={paddingTop}
+                  stroke="currentColor" className="text-white/5" strokeWidth="1" strokeDasharray="4 4"
+                />
+              </g>
+            ))}
+
+            {/* The Curve */}
+            {pathD && (
+              <>
+                {/* Background Glow Line */}
+                <motion.path 
+                  initial={{ pathLength: 0, opacity: 0 }}
+                  animate={{ pathLength: 1, opacity: 0.3 }}
+                  d={pathD}
+                  fill="none"
+                  stroke="hsl(var(--accent))"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                  className="blur-md"
+                />
+                {/* Main Sharp Line */}
+                <motion.path 
+                  initial={{ pathLength: 0, opacity: 0 }}
+                  animate={{ pathLength: 1, opacity: 1 }}
+                  d={pathD}
+                  fill="none"
+                  stroke="hsl(var(--accent))"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </>
+            )}
+
+            {/* Interaction Points */}
+            {svgPoints.map((p, i) => p.isRated && (
+              <motion.g key={i} initial={{ scale: 0 }} animate={{ scale: 1 }}>
+                <circle cx={p.x} cy={p.y} r="6" className="fill-accent/20" />
+                <circle cx={p.x} cy={p.y} r="3" className="fill-accent shadow-glow" />
+              </motion.g>
+            ))}
+
+            {/* Axes Labels */}
+            <text x={paddingLeft} y={height - 15} className="text-[10px] fill-muted-foreground font-mono" textAnchor="middle">0</text>
+            <text x={width - paddingRight} y={height - 15} className="text-[10px] fill-muted-foreground font-mono" textAnchor="end">Recall 1.0</text>
+            
+            <text 
+              x={15} y={height/2} 
+              className="text-[10px] fill-muted-foreground font-mono" 
+              textAnchor="middle" 
+              transform={`rotate(-90 15,${height/2})`}
+            >
+              Precision 1.0
+            </text>
+          </svg>
+        </div>
+      </GlassCardContent>
+    </GlassCard>
+  );
+}
+
 function IREvalDashboard({ metrics }: { metrics: any }) {
   if (!metrics || metrics.rated === 0) return null;
   return (
@@ -458,6 +606,8 @@ function IREvalDashboard({ metrics }: { metrics: any }) {
       animate={{ opacity: 1, y: 0 }}
       className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4"
     >
+      <PRCurve points={metrics.prPoints} />
+      
       <GlassCard className="bg-accent/5 border-accent/20">
         <GlassCardContent className="p-4 flex items-center justify-between">
           <div className="flex flex-col">

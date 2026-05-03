@@ -571,43 +571,43 @@ def extended_boolean_search(
 
     # 2. 3D Visualization Data Generation for Boolean
     # We'll use the same logic as vectorial for consistency
+    # --- Visualization Prep ---
     target_dims = []
-    if results:
-        doc_filenames = {r.filename for r in results}
-        doc_indices = [i for i, d in enumerate(index.documents) if d.filename in doc_filenames]
+    # Identify atomic terms from the RPN to define axes
+    all_query_terms = set([t for t in rpn if t not in _OPERATORS])
+    
+    if len(indices) > 0:
+        doc_indices = list(indices)
         if doc_indices:
             sum_weights = index.tfidf[:, doc_indices].sum(axis=1)
             sorted_dims = np.argsort(-sum_weights)
-            # Use query terms (atomic terms in boolean) to define axes if possible
-            query_terms = [t for t in rpn if t not in _OPERATORS]
-            for t in query_terms:
+            
+            # Prioritize terms that are actually in the query for the axes
+            for t in all_query_terms:
                 t_idx = index.term_to_idx.get(t)
                 if t_idx is not None and t_idx not in target_dims:
                     target_dims.append(t_idx)
-                if len(target_dims) >= 1: break
+                if len(target_dims) >= 3: break
             
             for d in sorted_dims:
+                if len(target_dims) >= 3: break
                 d_idx = int(d)
                 if d_idx not in target_dims:
                     target_dims.append(d_idx)
-                if len(target_dims) >= 3: break
 
-    # Fallback: if we have fewer than 3 terms, fill the remaining axes
-    # with the most "important" terms in the whole collection (highest IDF)
+    # Fallback: fill remaining axes with significant terms
     if len(target_dims) < 3:
-        # Get indices of all terms sorted by IDF descending
         significant_dims = np.argsort(-index.idf)
         for d in significant_dims:
+            if len(target_dims) >= 3: break
             d_idx = int(d)
             if d_idx not in target_dims:
                 target_dims.append(d_idx)
-            if len(target_dims) >= 3: break
 
     viz_data = None
     if len(target_dims) == 3:
         axes_labels = [index.vocabulary[i] for i in target_dims]
-        # Query point for boolean is less well-defined, we'll use membership of 1.0 for relevant terms
-        q_point = [1.0 if index.vocabulary[i] in query_terms else 0.0 for i in target_dims]
+        q_point = [1.0 if index.vocabulary[i] in all_query_terms else 0.0 for i in target_dims]
         
         doc_points = []
         # Limit to top 5 for consistency

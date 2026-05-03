@@ -90,8 +90,8 @@ export function SearchBar({
   return (
     <form onSubmit={handleSubmit} className="flex w-full items-center gap-3">
       <div className={cn(
-        "relative flex-1 group transition-all duration-500",
-        isFocused ? "scale-[1.01] z-40" : "z-10"
+        "relative flex-1 group transition-all duration-500 will-change-transform",
+        isFocused ? "scale-[1.02] z-40 transform-gpu" : "z-10"
       )}>
         <Search className={cn(
           "absolute left-4 top-1/2 -translate-y-1/2 size-5 transition-colors z-30 pointer-events-none",
