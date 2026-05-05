@@ -3,7 +3,7 @@
 
 export type SearchModel = "vectorial" | "boolean";
 
-export type VectorialSimilarity = "cosine" | "scalar" | "euclidean" | "jaccard" | "dice";
+export type VectorialSimilarity = "cosine" | "scalar" | "euclidean" | "jaccard" | "dice" | "overlap";
 
 export interface SearchResultItem {
   filename: string;

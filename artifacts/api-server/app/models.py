@@ -182,6 +182,11 @@ def vectorial_search(
         intersection = np.minimum(q_col, index.tfidf).sum(axis=0)
         total_sum = q_vec.sum() + index.tfidf.sum(axis=0)
         similarities = np.where(total_sum > 0, (2.0 * intersection) / total_sum, 0.0)
+    elif similarity == "overlap":
+        q_col = q_vec[:, np.newaxis]
+        intersection = np.minimum(q_col, index.tfidf).sum(axis=0)
+        min_sum = np.minimum(q_vec.sum(), index.tfidf.sum(axis=0))
+        similarities = np.where(min_sum > 0, intersection / min_sum, 0.0)
     else:
         q_norm = float(np.linalg.norm(q_vec))
         similarities = np.zeros(len(index.documents))

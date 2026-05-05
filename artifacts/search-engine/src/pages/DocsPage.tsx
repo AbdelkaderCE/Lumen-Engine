@@ -122,6 +122,7 @@ const SECTIONS = [
               { name: "Euclidean", formula: "1 / (1 + ||A-B||)", desc: "Inverse of L2 distance." },
               { name: "Jaccard", formula: "sum(min) / sum(max)", desc: "Fuzzy intersection over union." },
               { name: "Dice", formula: "2*sum(min) / (sum+sum)", desc: "Harmonic fuzzy overlap." },
+              { name: "Overlap", formula: "sum(min) / min(sum(A), sum(B))", desc: "Coefficient de Superposition." },
             ].map((sim) => (
               <div key={sim.name} className="flex flex-col gap-1.5 p-3 rounded-lg bg-muted/20 border border-border/50">
                 <Mono className="text-accent text-xs font-bold">{sim.name}</Mono>

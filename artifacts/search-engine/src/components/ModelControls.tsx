@@ -89,6 +89,7 @@ export function ModelControls({
                     { value: "euclidean", label: "Euclidean" },
                     { value: "jaccard", label: "Jaccard" },
                     { value: "dice", label: "Dice" },
+                    { value: "overlap", label: "Overlap" },
                   ]}
                 />
               </div>

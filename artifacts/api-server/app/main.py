@@ -80,9 +80,9 @@ class SearchRequest(BaseModel):
         description="Ranking model to use: 'vectorial' (TF-IDF + cosine) "
         "or 'boolean' (Extended Boolean p-norm).",
     )
-    similarity: Optional[Literal["cosine", "scalar", "euclidean", "jaccard", "dice"]] = Field(
+    similarity: Optional[Literal["cosine", "scalar", "euclidean", "jaccard", "dice", "overlap"]] = Field(
         "cosine",
-        description="Similarity measure for vectorial model: 'cosine', 'scalar', 'euclidean', 'jaccard', or 'dice'.",
+        description="Similarity measure for vectorial model: 'cosine', 'scalar', 'euclidean', 'jaccard', 'dice', or 'overlap'.",
     )
     p: Optional[float] = Field(
         2.0,

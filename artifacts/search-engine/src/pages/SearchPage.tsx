@@ -127,6 +127,7 @@ export default function SearchPage() {
         case "euclidean": return "Ranking based on the inverse Euclidean distance between TF-IDF vectors.";
         case "jaccard": return "Using the Tanimoto / Fuzzy Jaccard coefficient for weighted vector similarity.";
         case "dice": return "Using the Fuzzy Dice coefficient for weighted vector similarity.";
+        case "overlap": return "Using the Overlap Coefficient (Coefficient de Superposition) to measure similarity.";
         default: return "TF-IDF weighting combined with vectorial ranking.";
       }
     }
