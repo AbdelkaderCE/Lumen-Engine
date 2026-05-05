@@ -34,6 +34,18 @@ export function SearchBar({
     }
   }, [cursorPos, value]);
 
+  // Global keyboard shortcut (Cmd+K / Ctrl+K) to focus search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   function handleFocus(focused: boolean) {
     setIsFocused(focused);
     onFocusChange?.(focused);
@@ -128,18 +140,21 @@ export function SearchBar({
                   ]
                 }}
                 transition={{ 
-                  left: { type: "spring", stiffness: 800, damping: 40 },
-                  opacity: { repeat: Infinity, duration: 2, ease: "easeInOut" },
-                  boxShadow: { repeat: Infinity, duration: 2, ease: "easeInOut" }
+                  left: { type: "spring", stiffness: 1000, damping: 35 },
+                  opacity: { repeat: Infinity, duration: 1.5, ease: "easeInOut" },
+                  boxShadow: { repeat: Infinity, duration: 1.5, ease: "easeInOut" }
                 }}
               />
             )}
           </div>
 
           {!value && (
-            <span className="text-muted-foreground/50">
-              {placeholder ?? "Search the corpus…"}
-            </span>
+            <div className="flex flex-1 items-center justify-between text-muted-foreground/50">
+              <span>{placeholder ?? "Search the corpus…"}</span>
+              <kbd className="hidden sm:inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2 py-0.5 font-sans text-xs font-medium text-white/50 backdrop-blur-sm transition-all group-hover:bg-white/10 group-hover:text-white/70">
+                <span className="text-[13px] leading-none mt-[1px]">⌘</span>K
+              </kbd>
+            </div>
           )}
         </div>
 
